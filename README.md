@@ -12,11 +12,11 @@ Turns what is usually an individual or city-only responsibility into a community
 Our team saw this as a real opportunity to make community service more accessible and coordinated.
 
 ## Authors
-Dylan Gerlach 
-Valerie Luu 
-Hector Quinones 
-Omer Raziuddin
-Sidartha Yogendra
+Dylan Gerlach, 
+Valerie Luu, 
+Hector Quinones, 
+Omer Raziuddin,
+ and Sidartha Yogendra
 
 ## Getting Started
 
