@@ -72,17 +72,29 @@ Omer Raziuddin,
 - **Backend API**: http://localhost:3000
 - **Mobile Testing**: Use Expo Go app with QR code
 
+## Usage Instructions
+
+
+
 ## Languages, Technologies, and Frameworks Used
 
 Languages: JavaScript
 Technologies: Supabase, Node.js
 Frameworks: React Native, Express.js
 
+## Contributing Guidelines
+
+
+
+## License Information
+
+
+
+## Future Plans for App
+
+
 
 ## Changelog
 
 Log for Changes:
-
-
-
 
