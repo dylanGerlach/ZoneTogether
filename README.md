@@ -11,7 +11,7 @@ This app creates a shared space where organizers can plan cleanup zones and volu
 Turns what is usually an individual or city-only responsibility into a community effort. The business case is that it saves time, encourages civic engagement, and helps keep cities cleaner without adding more burden to local governments. 
 Our team saw this as a real opportunity to make community service more accessible and coordinated.
 
-## Authors
+## Authors 
 Dylan Gerlach, 
 Valerie Luu, 
 Hector Quinones, 
@@ -74,12 +74,9 @@ Omer Raziuddin,
 
 ## Languages, Technologies, and Frameworks Used
 
-Languages:
-JavaScript
-Technologies:
-Supabase, Node.js
-Frameworks:
-React Native, Express.js
+Languages: JavaScript
+Technologies: Supabase, Node.js
+Frameworks: React Native, Express.js
 
 
 ## Changelog
