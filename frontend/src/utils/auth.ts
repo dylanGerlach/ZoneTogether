@@ -9,10 +9,16 @@ export interface AuthResponse {
 
 /**
  * Sign up a new user with email and password
+ * Can include additional profile information in user metadata
  */
 export async function signUp(
   email: string,
-  password: string
+  password: string,
+  metadata?: {
+    fullName?: string;
+    phoneNumber?: string;
+    role?: 'volunteer' | 'organizer';
+  }
 ): Promise<AuthResponse> {
   const client = getSupabaseClient();
   if (!client)
@@ -28,6 +34,9 @@ export async function signUp(
   const { data, error } = await client.auth.signUp({
     email,
     password,
+    options: {
+      data: metadata || {},
+    },
   });
 
   return {

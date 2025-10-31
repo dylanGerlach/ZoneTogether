@@ -13,6 +13,12 @@ export interface SignUpCredentials {
   password: string;
 }
 
+export interface SignUpData extends SignUpCredentials {
+  fullName?: string;
+  phoneNumber?: string;
+  role?: 'volunteer' | 'organizer';
+}
+
 export interface SignInCredentials {
   email: string;
   password: string;
