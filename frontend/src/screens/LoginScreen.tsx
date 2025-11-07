@@ -2,7 +2,7 @@
  * Login screen
  */
 
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Image,
@@ -12,39 +12,46 @@ import {
   StyleSheet,
   Alert,
   TouchableOpacity,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Text, Button, Input, Checkbox } from '../components';
-import { colors, spacing } from '../theme';
-import { RootStackParamList } from '../types';
-import { signIn } from '../utils/auth';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Text, Button, Input, Checkbox } from "../components";
+import { colors, spacing } from "../theme";
+import { RootStackParamList } from "../types";
+import { useAuthContext } from "../context/AuthContext";
 
-type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
+type LoginScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "Login"
+>;
 
 export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<LoginScreenNavigationProp>();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { signIn } = useAuthContext();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [keepSignedIn, setKeepSignedIn] = useState(true);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {}
+  );
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const validate = () => {
     const newErrors: { email?: string; password?: string } = {};
 
     if (!email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!email.includes('@')) {
-      newErrors.email = 'Please enter a valid email';
+      newErrors.email = "Email is required";
+    } else if (!email.includes("@")) {
+      newErrors.email = "Please enter a valid email";
     }
 
     if (!password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = "Password is required";
     } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+      newErrors.password = "Password must be at least 6 characters";
     }
 
     setErrors(newErrors);
@@ -55,26 +62,26 @@ export const LoginScreen: React.FC = () => {
     if (!validate()) return;
 
     setLoading(true);
+    setFormError(null);
+    setErrors({});
     try {
-      const { error } = await signIn(email, password);
-      
-      if (error) {
-        Alert.alert('Error', error.message || 'Login failed');
-      } else {
-        Alert.alert('Success', 'Welcome back!');
-        // TODO: Navigate to Home screen when ready
-      }
+      await signIn(email, password);
+      Alert.alert("Success", "Welcome back!");
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Login failed');
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Login failed. Please try again.";
+      setFormError(message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
         <ScrollView
@@ -85,7 +92,7 @@ export const LoginScreen: React.FC = () => {
             {/* Logo */}
             <View style={styles.logoContainer}>
               <Image
-                source={require('../../assets/Zone Together Logo 1.png')}
+                source={require("../../assets/Zone Together Logo 1.png")}
                 style={styles.logo}
                 resizeMode="contain"
               />
@@ -96,13 +103,23 @@ export const LoginScreen: React.FC = () => {
               <Text variant="h1" style={styles.title}>
                 Login
               </Text>
-              <Text variant="body" color="textSecondary" style={styles.subtitle}>
+              <Text
+                variant="body"
+                color="textSecondary"
+                style={styles.subtitle}
+              >
                 Welcome back to the app
               </Text>
             </View>
 
             {/* Form */}
             <View style={styles.form}>
+              {formError && (
+                <Text variant="caption" color="error" style={styles.formError}>
+                  {formError}
+                </Text>
+              )}
+
               <Input
                 label="Email Address"
                 placeholder="hello@example.com"
@@ -133,9 +150,12 @@ export const LoginScreen: React.FC = () => {
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 rightIcon={
-                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)} activeOpacity={0.7}>
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    activeOpacity={0.7}
+                  >
                     <Text variant="body" color="textSecondary">
-                      {showPassword ? '👁️' : '👁️‍🗨️'}
+                      {showPassword ? "👁️" : "👁️‍🗨️"}
                     </Text>
                   </TouchableOpacity>
                 }
@@ -152,16 +172,21 @@ export const LoginScreen: React.FC = () => {
                 loading={loading}
                 style={styles.loginButton}
               >
-                <Text variant="label" color="white">Login</Text>
+                <Text variant="label" color="white">
+                  Login
+                </Text>
               </Button>
             </View>
 
             {/* Footer */}
             <View style={styles.footer}>
               <Text variant="body" color="textSecondary">
-                Don't have an account?{' '}
+                Don't have an account?{" "}
               </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Signup')} activeOpacity={0.7}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate("Signup")}
+                activeOpacity={0.7}
+              >
                 <Text variant="body" color="primary">
                   Create an account
                 </Text>
@@ -188,11 +213,11 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.lg,
     maxWidth: 500,
-    alignSelf: 'center',
-    width: '100%',
+    alignSelf: "center",
+    width: "100%",
   },
   logoContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: spacing.xl,
   },
   logo: {
@@ -200,7 +225,7 @@ const styles = StyleSheet.create({
     height: 180,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: spacing.lg,
   },
   title: {
@@ -209,24 +234,27 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   subtitle: {
-    textAlign: 'center',
+    textAlign: "center",
   },
   form: {
-    width: '100%',
+    width: "100%",
+  },
+  formError: {
+    marginBottom: spacing.sm,
   },
   passwordHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: spacing.xs,
   },
   loginButton: {
     marginTop: spacing.lg,
   },
   footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: spacing.lg,
   },
 });

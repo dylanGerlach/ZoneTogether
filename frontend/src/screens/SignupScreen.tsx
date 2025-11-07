@@ -2,7 +2,7 @@
  * Signup screen - Register new users with full profile information
  */
 
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Image,
@@ -12,16 +12,19 @@ import {
   StyleSheet,
   Alert,
   TouchableOpacity,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Text, Button, Input, Checkbox } from '../components';
-import { colors, spacing } from '../theme';
-import { RootStackParamList } from '../types';
-import { signUp } from '../utils/auth';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Text, Button, Input, Checkbox } from "../components";
+import { colors, spacing } from "../theme";
+import { RootStackParamList } from "../types";
+import { useAuthContext } from "../context/AuthContext";
 
-type SignupScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Signup'>;
+type SignupScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "Signup"
+>;
 
 interface SignupErrors {
   fullName?: string;
@@ -34,21 +37,23 @@ interface SignupErrors {
 
 export const SignupScreen: React.FC = () => {
   const navigation = useNavigation<SignupScreenNavigationProp>();
-  
+  const { signUp } = useAuthContext();
+
   // Form state
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [role, setRole] = useState<'volunteer' | 'organizer'>('volunteer');
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [role, setRole] = useState<"volunteer" | "organizer">("volunteer");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  
+
   // UI state
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<SignupErrors>({});
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Validation logic
   const validate = (): boolean => {
@@ -56,38 +61,38 @@ export const SignupScreen: React.FC = () => {
 
     // Full name validation
     if (!fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
+      newErrors.fullName = "Full name is required";
     }
 
     // Email validation
     if (!email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!email.includes('@') || !email.includes('.')) {
-      newErrors.email = 'Please enter a valid email address';
+      newErrors.email = "Email is required";
+    } else if (!email.includes("@") || !email.includes(".")) {
+      newErrors.email = "Please enter a valid email address";
     }
 
     // Password validation
     if (!password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = "Password is required";
     } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+      newErrors.password = "Password must be at least 6 characters";
     }
 
     // Confirm password validation
     if (!confirmPassword) {
-      newErrors.confirmPassword = 'Please confirm your password';
+      newErrors.confirmPassword = "Please confirm your password";
     } else if (password !== confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
+      newErrors.confirmPassword = "Passwords do not match";
     }
 
     // Phone number validation (optional, but if provided should be valid)
     if (phoneNumber && phoneNumber.trim().length < 10) {
-      newErrors.phoneNumber = 'Please enter a valid phone number';
+      newErrors.phoneNumber = "Please enter a valid phone number";
     }
 
     // Terms acceptance validation
     if (!acceptedTerms) {
-      newErrors.terms = 'You must accept the terms and conditions';
+      newErrors.terms = "You must accept the terms and conditions";
     }
 
     setErrors(newErrors);
@@ -98,38 +103,40 @@ export const SignupScreen: React.FC = () => {
     if (!validate()) return;
 
     setLoading(true);
+    setFormError(null);
+    setErrors({});
     try {
-      const { error } = await signUp(email, password, {
+      await signUp(email, password, {
         fullName,
         phoneNumber: phoneNumber || undefined,
         role,
       });
-      
-      if (error) {
-        Alert.alert('Error', error.message || 'Signup failed. Please try again.');
-      } else {
-        Alert.alert(
-          'Success', 
-          'Account created! Please check your email to verify your account.',
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.navigate('Login'),
-            }
-          ]
-        );
-      }
+
+      Alert.alert(
+        "Success",
+        "Account created! Please check your email to verify your account.",
+        [
+          {
+            text: "OK",
+            onPress: () => navigation.navigate("Login"),
+          },
+        ]
+      );
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Signup failed. Please try again.');
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Signup failed. Please try again.";
+      setFormError(message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
         <ScrollView
@@ -140,7 +147,7 @@ export const SignupScreen: React.FC = () => {
             {/* Logo */}
             <View style={styles.logoContainer}>
               <Image
-                source={require('../../assets/Zone Together Logo 1.png')}
+                source={require("../../assets/Zone Together Logo 1.png")}
                 style={styles.logo}
                 resizeMode="contain"
               />
@@ -151,13 +158,23 @@ export const SignupScreen: React.FC = () => {
               <Text variant="h1" style={styles.title}>
                 Sign Up
               </Text>
-              <Text variant="body" color="textSecondary" style={styles.subtitle}>
+              <Text
+                variant="body"
+                color="textSecondary"
+                style={styles.subtitle}
+              >
                 Create your ZoneTogether account
               </Text>
             </View>
 
             {/* Form */}
             <View style={styles.form}>
+              {formError && (
+                <Text variant="caption" color="error" style={styles.formError}>
+                  {formError}
+                </Text>
+              )}
+
               {/* Full Name */}
               <Input
                 label="Full Name"
@@ -194,23 +211,40 @@ export const SignupScreen: React.FC = () => {
 
               {/* Role Selection */}
               <View style={styles.roleContainer}>
-                <Text variant="label" color="textPrimary" style={styles.roleLabel}>
+                <Text
+                  variant="label"
+                  color="textPrimary"
+                  style={styles.roleLabel}
+                >
                   I am a
                 </Text>
                 <View style={styles.roleToggle}>
                   <TouchableOpacity
-                    style={[styles.roleButton, role === 'volunteer' && styles.roleButtonActive, styles.roleButtonFirst]}
-                    onPress={() => setRole('volunteer')}
+                    style={[
+                      styles.roleButton,
+                      role === "volunteer" && styles.roleButtonActive,
+                      styles.roleButtonFirst,
+                    ]}
+                    onPress={() => setRole("volunteer")}
                   >
-                    <Text variant="body" color={role === 'volunteer' ? 'white' : 'textPrimary'}>
+                    <Text
+                      variant="body"
+                      color={role === "volunteer" ? "white" : "textPrimary"}
+                    >
                       Volunteer
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.roleButton, role === 'organizer' && styles.roleButtonActive]}
-                    onPress={() => setRole('organizer')}
+                    style={[
+                      styles.roleButton,
+                      role === "organizer" && styles.roleButtonActive,
+                    ]}
+                    onPress={() => setRole("organizer")}
                   >
-                    <Text variant="body" color={role === 'organizer' ? 'white' : 'textPrimary'}>
+                    <Text
+                      variant="body"
+                      color={role === "organizer" ? "white" : "textPrimary"}
+                    >
                       Organizer
                     </Text>
                   </TouchableOpacity>
@@ -227,9 +261,12 @@ export const SignupScreen: React.FC = () => {
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 rightIcon={
-                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)} activeOpacity={0.7}>
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    activeOpacity={0.7}
+                  >
                     <Text variant="body" color="textSecondary">
-                      {showPassword ? '👁️' : '👁️‍🗨️'}
+                      {showPassword ? "👁️" : "👁️‍🗨️"}
                     </Text>
                   </TouchableOpacity>
                 }
@@ -245,9 +282,12 @@ export const SignupScreen: React.FC = () => {
                 secureTextEntry={!showConfirmPassword}
                 autoCapitalize="none"
                 rightIcon={
-                  <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} activeOpacity={0.7}>
+                  <TouchableOpacity
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                    activeOpacity={0.7}
+                  >
                     <Text variant="body" color="textSecondary">
-                      {showConfirmPassword ? '👁️' : '👁️‍🗨️'}
+                      {showConfirmPassword ? "👁️" : "👁️‍🗨️"}
                     </Text>
                   </TouchableOpacity>
                 }
@@ -256,7 +296,7 @@ export const SignupScreen: React.FC = () => {
               {/* Terms Checkbox */}
               <Checkbox value={acceptedTerms} onToggle={setAcceptedTerms}>
                 <Text variant="body" color="textSecondary">
-                  I agree to the{' '}
+                  I agree to the{" "}
                   <Text variant="body" color="primary">
                     Terms and Conditions
                   </Text>
@@ -276,16 +316,21 @@ export const SignupScreen: React.FC = () => {
                 loading={loading}
                 style={styles.signupButton}
               >
-                <Text variant="label" color="white">Sign Up</Text>
+                <Text variant="label" color="white">
+                  Sign Up
+                </Text>
               </Button>
             </View>
 
             {/* Footer */}
             <View style={styles.footer}>
               <Text variant="body" color="textSecondary">
-                Already have an account?{' '}
+                Already have an account?{" "}
               </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Login')} activeOpacity={0.7}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate("Login")}
+                activeOpacity={0.7}
+              >
                 <Text variant="body" color="primary">
                   Log In
                 </Text>
@@ -312,11 +357,11 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.lg,
     maxWidth: 500,
-    alignSelf: 'center',
-    width: '100%',
+    alignSelf: "center",
+    width: "100%",
   },
   logoContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: spacing.xl,
   },
   logo: {
@@ -324,7 +369,7 @@ const styles = StyleSheet.create({
     height: 180,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: spacing.lg,
   },
   title: {
@@ -333,10 +378,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   subtitle: {
-    textAlign: 'center',
+    textAlign: "center",
   },
   form: {
-    width: '100%',
+    width: "100%",
+  },
+  formError: {
+    marginBottom: spacing.sm,
   },
   roleContainer: {
     marginBottom: spacing.md,
@@ -345,7 +393,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   roleToggle: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   roleButton: {
     flex: 1,
@@ -354,7 +402,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: colors.background,
   },
   roleButtonFirst: {
@@ -373,9 +421,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: spacing.lg,
   },
 });
