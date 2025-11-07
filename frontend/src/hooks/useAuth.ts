@@ -7,7 +7,11 @@ interface UseAuthReturn {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    metadata?: Record<string, unknown>
+  ) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -41,12 +45,23 @@ export function useAuth(): UseAuthReturn {
     };
   }, []);
 
-  const handleSignUp = useCallback(async (email: string, password: string) => {
-    const { user, session, error } = await authUtils.signUp(email, password);
-    if (error) throw error;
-    setUser(user);
-    setSession(session);
-  }, []);
+  const handleSignUp = useCallback(
+    async (
+      email: string,
+      password: string,
+      metadata?: Record<string, unknown>
+    ) => {
+      const { user, session, error } = await authUtils.signUp(
+        email,
+        password,
+        metadata
+      );
+      if (error) throw error;
+      setUser(user);
+      setSession(session);
+    },
+    []
+  );
 
   const handleSignIn = useCallback(async (email: string, password: string) => {
     const { user, session, error } = await authUtils.signIn(email, password);
