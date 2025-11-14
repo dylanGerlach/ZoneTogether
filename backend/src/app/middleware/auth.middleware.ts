@@ -23,5 +23,6 @@
         }
         
         (req as Request & { user?: typeof data.user }).user = data.user;
+        (req as Request & { token?: typeof token }).token = token;
         next();
     }
