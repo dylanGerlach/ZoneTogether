@@ -38,8 +38,8 @@ export class OrganizationService {
   async getOrganizationsById(userId: string) {
     const { data, error } = await this.client
     .from('organization_members')
-    .select('organization_id')
-
+    .select('organization_id, role, organization(name, description)')
+    .eq('user_id', userId);
     if (error) throw error;
     return data;
   }
