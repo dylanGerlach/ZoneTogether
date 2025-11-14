@@ -28,3 +28,13 @@ export async function joinOrganization(req: Request, res: Response) {
         res.status(500).json({ error: "Failed to join organization: " + error as string });
     }
 }
+
+export async function getOrganizationsById(req: Request, res: Response) {
+    try {
+        const organizationService = new OrganizationService(req.token as string);
+        const all_user_organizations = await organizationService.getOrganizationsById(req.user?.id as string);
+        return res.status(200).json({ organizations: all_user_organizations });
+    } catch (error) {
+        res.status(500).json({error: "Failed to fetch organizations by id: " + error});
+    }
+}
