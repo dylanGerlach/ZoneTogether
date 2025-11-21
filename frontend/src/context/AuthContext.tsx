@@ -4,10 +4,13 @@ import React, {
   useMemo,
   type ReactNode,
 } from "react";
+import { View, StyleSheet } from "react-native";
 import type { Session, User } from "@supabase/supabase-js";
 
 import { useAuth } from "../hooks/useAuth";
 import { isSupabaseConfigured } from "../utils/supabase";
+import { colors, spacing } from "../theme";
+import { Text } from "../components";
 
 type AuthContextValue = {
   user: User | null;
@@ -29,12 +32,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   const supabaseEnabled = isSupabaseConfigured();
 
-  if (!supabaseEnabled) {
-    throw new Error(
-      "Supabase environment variables are not configured. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to your Expo environment."
-    );
-  }
-
   const authState = useAuth();
 
   const value = useMemo<AuthContextValue>(
@@ -49,8 +46,44 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     [authState]
   );
 
+  if (!supabaseEnabled) {
+    return (
+      <AuthContext.Provider value={value}>
+        <MissingSupabaseConfigNotice />
+      </AuthContext.Provider>
+    );
+  }
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
+const MissingSupabaseConfigNotice: React.FC = () => (
+  <View style={styles.noticeContainer}>
+    <Text variant="h2" align="center" style={styles.noticeTitle}>
+      Supabase configuration missing
+    </Text>
+    <Text variant="body" align="center" style={styles.noticeBody}>
+      Set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` (or add
+      them to `app.json` extra) so authentication can run.
+    </Text>
+  </View>
+);
+
+const styles = StyleSheet.create({
+  noticeContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.lg,
+    backgroundColor: colors.background,
+  },
+  noticeTitle: {
+    marginBottom: spacing.sm,
+  },
+  noticeBody: {
+    color: colors.textSecondary,
+  },
+});
 
 export function useAuthContext(): AuthContextValue {
   const context = useContext(AuthContext);
