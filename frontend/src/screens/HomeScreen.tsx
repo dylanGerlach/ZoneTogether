@@ -1,20 +1,35 @@
 import React from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, TouchableOpacity, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { Button, Card, Text } from "../components";
 import { useAuthContext } from "../context/AuthContext";
 import { colors, spacing } from "../theme";
+import { RootStackParamList } from "../types";
+
+type HomeScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "Home"
+>;
 
 export const HomeScreen: React.FC = () => {
   const { user, signOut } = useAuthContext();
+  const navigation = useNavigation<HomeScreenNavigationProp>();
 
   const email = user?.email ?? "guest@example.com";
   const fullName = (user?.user_metadata as { fullName?: string })?.fullName;
   const role = (user?.user_metadata as { role?: string })?.role;
 
+  const Container = Platform.OS === "web" ? View : SafeAreaView;
+  const containerProps =
+    Platform.OS === "web"
+      ? { style: styles.container }
+      : { style: styles.container, edges: ["top", "bottom"] as const };
+
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+    <Container {...containerProps}>
       <View style={styles.content}>
         <Text variant="h1" style={styles.title}>
           Welcome to ZoneTogether
@@ -39,6 +54,15 @@ export const HomeScreen: React.FC = () => {
           )}
         </Card>
 
+        <TouchableOpacity
+          onPress={() => navigation.navigate("MessageList")}
+          style={styles.messagesLink}
+        >
+          <Text variant="body" color="primary" style={styles.messagesLinkText}>
+            Go to Messages →
+          </Text>
+        </TouchableOpacity>
+
         <Button
           variant="secondary"
           style={styles.signOutButton}
@@ -49,7 +73,7 @@ export const HomeScreen: React.FC = () => {
           </Text>
         </Button>
       </View>
-    </SafeAreaView>
+    </Container>
   );
 };
 
@@ -74,6 +98,14 @@ const styles = StyleSheet.create({
   },
   detail: {
     marginBottom: spacing.xs,
+  },
+  messagesLink: {
+    padding: spacing.md,
+    alignSelf: "center",
+  },
+  messagesLinkText: {
+    fontSize: 16,
+    textDecorationLine: "underline",
   },
   signOutButton: {
     alignSelf: "center",

@@ -133,8 +133,14 @@ export const SignupScreen: React.FC = () => {
     }
   };
 
+  const Container = Platform.OS === "web" ? View : SafeAreaView;
+  const containerProps =
+    Platform.OS === "web"
+      ? { style: styles.container }
+      : { style: styles.container, edges: ["top", "bottom"] as const };
+
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+    <Container {...containerProps}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
@@ -339,7 +345,7 @@ export const SignupScreen: React.FC = () => {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </Container>
   );
 };
 
