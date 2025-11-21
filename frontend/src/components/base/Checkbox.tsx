@@ -11,11 +11,25 @@ interface CheckboxProps {
   value: boolean;
   onToggle: (value: boolean) => void;
   children?: React.ReactNode;
+  disabled?: boolean;
 }
 
-export const Checkbox: React.FC<CheckboxProps> = ({ value, onToggle, children }) => {
+export const Checkbox: React.FC<CheckboxProps> = ({
+  value,
+  onToggle,
+  children,
+  disabled = false,
+}) => {
   return (
-    <TouchableOpacity style={styles.container} onPress={() => onToggle(!value)} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={styles.container}
+      onPress={() => {
+        if (disabled) return;
+        onToggle(!value);
+      }}
+      activeOpacity={0.7}
+      disabled={disabled}
+    >
       <View style={[styles.checkbox, value && styles.checked]}>
         {value && (
           <View style={styles.checkmark}>
@@ -61,5 +75,6 @@ const styles = StyleSheet.create({
   },
   label: {
     flex: 1,
+    justifyContent: 'center',
   },
 });

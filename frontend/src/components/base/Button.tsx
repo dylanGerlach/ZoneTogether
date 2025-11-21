@@ -9,6 +9,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { colors, spacing } from '../../theme';
 
 interface ButtonProps extends Omit<TouchableOpacityProps, 'children'> {
@@ -42,6 +43,12 @@ export const Button: React.FC<ButtonProps> = ({
     }
   };
 
+  const buttonContent = loading ? (
+    <ActivityIndicator color={variant === 'outline' ? colors.primary : colors.white} />
+  ) : (
+    children
+  );
+
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -56,10 +63,17 @@ export const Button: React.FC<ButtonProps> = ({
       ]}
       {...props}
     >
-      {loading ? (
-        <ActivityIndicator color={variant === 'outline' ? colors.primary : colors.white} />
+      {variant === 'primary' ? (
+        <LinearGradient
+          colors={["#5c2cff", "#2b7ef8"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradient}
+        >
+          {buttonContent}
+        </LinearGradient>
       ) : (
-        children
+        buttonContent
       )}
     </TouchableOpacity>
   );
@@ -69,21 +83,28 @@ const styles = StyleSheet.create({
   button: {
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
-    borderRadius: 8,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 48,
+    minHeight: 52,
+    overflow: 'hidden',
   },
   primary: {
-    backgroundColor: colors.primary,
+    backgroundColor: 'transparent',
   },
   secondary: {
     backgroundColor: colors.accent,
+    borderRadius: 999,
   },
   outline: {
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: colors.primary,
+  },
+  gradient: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   fullWidth: {
     width: '100%',
