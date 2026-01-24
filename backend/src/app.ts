@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./app/routes/auth.route.js";
 import organizationRoutes from "./app/routes/organization.route.js";
+import messagingRoutes from "./app/routes/messaging.route.js";
 const app = express();
 app.use(cors());
 dotenv.config();
@@ -11,6 +12,7 @@ const port = process.env.PORT || 3000;
 app.use(express.json());
 app.use("/auth", authRoutes);
 app.use("/organization", organizationRoutes);
+app.use("/sessions", messagingRoutes);
 
 app.get("/", (req: any, res: any) => {
   res.send("Hello World");

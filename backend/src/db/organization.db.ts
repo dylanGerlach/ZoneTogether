@@ -44,4 +44,17 @@ export class OrganizationService {
     return data;
   }
 
+  async getAllUsersInOrganization(organizationId: string) {
+    const { data, error } = await this.client
+    .from('organization_members')
+    .select('user_id, role, profiles(full_name)')
+    .eq('organization_id', organizationId);
+    if (error) throw error;
+    return data.map(({ profiles, ...organizationMember }: any) => ({
+        ...organizationMember,
+        profile_id: profiles?.id,
+        profile_full_name: profiles?.full_name,
+    }));
+  }
+
 }
