@@ -38,3 +38,14 @@ export async function getOrganizationsById(req: Request, res: Response) {
         res.status(500).json({error: "Failed to fetch organizations by id: " + error});
     }
 }
+
+export async function getAllUsersInOrganization(req: Request, res: Response) {
+    const { organizationId } = req.params;
+    try {
+        const organizationService = new OrganizationService(req.token as string);
+        const allUsers = await organizationService.getAllUsersInOrganization(organizationId as string);
+        res.status(200).json(allUsers);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to fetch all users in organization: " + error as string });
+    }
+}
