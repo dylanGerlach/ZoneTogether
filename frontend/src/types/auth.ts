@@ -16,7 +16,6 @@ export interface SignUpCredentials {
 export interface SignUpData extends SignUpCredentials {
   fullName?: string;
   phoneNumber?: string;
-  role?: 'volunteer' | 'organizer';
 }
 
 export interface SignInCredentials {

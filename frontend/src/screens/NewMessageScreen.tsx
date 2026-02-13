@@ -2,114 +2,38 @@
  * New Message Screen - Create a new message session by selecting people from organizations
  */
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   View,
   StyleSheet,
-  FlatList,
   TouchableOpacity,
   ScrollView,
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Text, Button, Checkbox } from "../components";
+import { useAuthContext } from "../context/AuthContext";
 import { colors, spacing } from "../theme";
-import { RootStackParamList } from "../types";
+import {
+  GetOrganizationsResponse,
+  OrganizationVM,
+  RootStackParamList,
+  SessionCreatePayload,
+} from "../types";
+import {
+  createSession,
+  fetchOrganizations,
+  fetchOrganizationUsers,
+} from "../utils/backendApi";
 
 type NewMessageScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
   "NewMessage"
 >;
-
-interface OrganizationMember {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-}
-
-interface Organization {
-  id: string;
-  name: string;
-  description: string;
-  members: OrganizationMember[];
-}
-
-// Fake data
-const fakeOrganizations: Organization[] = [
-  {
-    id: "1",
-    name: "Community Cleanup Group",
-    description: "Local community volunteers",
-    members: [
-      { id: "1", name: "John Doe", email: "john@example.com", role: "Member" },
-      {
-        id: "2",
-        name: "Jane Smith",
-        email: "jane@example.com",
-        role: "Organizer",
-      },
-      {
-        id: "3",
-        name: "Mike Johnson",
-        email: "mike@example.com",
-        role: "Member",
-      },
-      {
-        id: "4",
-        name: "Sarah Williams",
-        email: "sarah@example.com",
-        role: "Member",
-      },
-    ],
-  },
-  {
-    id: "2",
-    name: "Downtown Volunteers",
-    description: "Downtown area cleanup team",
-    members: [
-      {
-        id: "5",
-        name: "Alex Brown",
-        email: "alex@example.com",
-        role: "Organizer",
-      },
-      {
-        id: "6",
-        name: "Emma Davis",
-        email: "emma@example.com",
-        role: "Member",
-      },
-      {
-        id: "7",
-        name: "Chris Wilson",
-        email: "chris@example.com",
-        role: "Member",
-      },
-    ],
-  },
-  {
-    id: "3",
-    name: "Beach Cleanup Team",
-    description: "Coastal area volunteers",
-    members: [
-      {
-        id: "8",
-        name: "Taylor Martinez",
-        email: "taylor@example.com",
-        role: "Member",
-      },
-      {
-        id: "9",
-        name: "Jordan Lee",
-        email: "jordan@example.com",
-        role: "Organizer",
-      },
-    ],
-  },
-];
+type NewMessageScreenRouteProp = RouteProp<RootStackParamList, "NewMessage">;
 
 const getInitials = (name: string): string => {
   return name
@@ -120,8 +44,19 @@ const getInitials = (name: string): string => {
     .slice(0, 2);
 };
 
+const mapOrganizations = (
+  response: GetOrganizationsResponse,
+): OrganizationVM[] => {
+  return response.organizations.map((membership) => ({
+    id: membership.organization_id,
+    name: membership.organization?.name ?? "Unnamed organization",
+    description: membership.organization?.description ?? "",
+    members: [],
+  }));
+};
+
 const OrganizationItem: React.FC<{
-  organization: Organization;
+  organization: OrganizationVM;
   onSelect: () => void;
 }> = ({ organization, onSelect }) => {
   return (
@@ -153,15 +88,96 @@ const OrganizationItem: React.FC<{
 };
 
 export const NewMessageScreen: React.FC = () => {
+  const { session, user } = useAuthContext();
   const navigation = useNavigation<NewMessageScreenNavigationProp>();
-  const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
+  const route = useRoute<NewMessageScreenRouteProp>();
+  const [organizations, setOrganizations] = useState<OrganizationVM[]>([]);
+  const [selectedOrganization, setSelectedOrganization] =
+    useState<OrganizationVM | null>(null);
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(
-    new Set()
+    new Set(),
+  );
+  const [loadingOrganizations, setLoadingOrganizations] = useState(true);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadOrganizations = useCallback(async () => {
+    if (!session) return;
+
+    setLoadingOrganizations(true);
+    setError(null);
+    try {
+      const response = await fetchOrganizations(session);
+      const mappedOrganizations = mapOrganizations(response);
+      setOrganizations(mappedOrganizations);
+      const initialSelection =
+        mappedOrganizations.find(
+          (org) => org.id === route.params.organizationId,
+        ) ?? null;
+      setSelectedOrganization(initialSelection);
+    } catch (loadError) {
+      const message =
+        loadError instanceof Error
+          ? loadError.message
+          : "Unable to load organizations right now.";
+      setError(message);
+      setOrganizations([]);
+      setSelectedOrganization(null);
+    } finally {
+      setLoadingOrganizations(false);
+    }
+  }, [route.params.organizationId, session]);
+
+  const loadMembers = useCallback(
+    async (organizationId: string) => {
+      if (!session) return;
+
+      setLoadingMembers(true);
+      setError(null);
+      try {
+        const response = await fetchOrganizationUsers(session, organizationId);
+        const members = response.map((member) => ({
+          user_id: member.user_id,
+          profile_full_name: member.profile_full_name,
+          role: member.role,
+        }));
+        setOrganizations((current) =>
+          current.map((org) =>
+            org.id === organizationId ? { ...org, members } : org,
+          ),
+        );
+        setSelectedOrganization((current) =>
+          current && current.id === organizationId
+            ? { ...current, members }
+            : current,
+        );
+      } catch (loadError) {
+        const message =
+          loadError instanceof Error
+            ? loadError.message
+            : "Unable to load organization members right now.";
+        setError(message);
+      } finally {
+        setLoadingMembers(false);
+      }
+    },
+    [session],
   );
 
-  const handleSelectOrganization = (organization: Organization) => {
+  useEffect(() => {
+    void loadOrganizations();
+  }, [loadOrganizations]);
+
+  useEffect(() => {
+    if (!selectedOrganization) return;
+    if (selectedOrganization.members.length > 0) return;
+    void loadMembers(selectedOrganization.id);
+  }, [loadMembers, selectedOrganization]);
+
+  const handleSelectOrganization = (organization: OrganizationVM) => {
     setSelectedOrganization(organization);
-    setSelectedMembers(new Set()); // Reset member selection when changing org
+    setSelectedMembers(new Set());
   };
 
   const handleBackToOrganizations = () => {
@@ -170,24 +186,59 @@ export const NewMessageScreen: React.FC = () => {
   };
 
   const handleToggleMember = (memberId: string) => {
-    const newSelected = new Set(selectedMembers);
-    if (newSelected.has(memberId)) {
-      newSelected.delete(memberId);
-    } else {
-      newSelected.add(memberId);
-    }
-    setSelectedMembers(newSelected);
+    setSelectedMembers((current) => {
+      const next = new Set(current);
+      if (next.has(memberId)) {
+        next.delete(memberId);
+      } else {
+        next.add(memberId);
+      }
+      return next;
+    });
   };
 
-  const handleCreateSession = () => {
-    if (selectedMembers.size > 0 && selectedOrganization) {
-      // In real app, this would create the session and navigate to it
-      // For now, just navigate back to message list
-      navigation.goBack();
+  const handleCreateSession = async () => {
+    if (
+      !session ||
+      !selectedOrganization ||
+      selectedMembers.size === 0 ||
+      submitting
+    ) {
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const users = new Set(Array.from(selectedMembers));
+      if (user?.id) {
+        users.add(user.id);
+      }
+      const payload: SessionCreatePayload = {
+        organizationId: selectedOrganization.id,
+        users: Array.from(users),
+        title: `Conversation in ${selectedOrganization.name}`,
+      };
+      const created = await createSession(session, payload);
+      navigation.replace("MessageDetail", {
+        conversationId: created.id,
+        title: created.title,
+      });
+    } catch (createError) {
+      const message =
+        createError instanceof Error
+          ? createError.message
+          : "Unable to create a conversation right now.";
+      setError(message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const selectedCount = selectedMembers.size;
+  const visibleOrganizations = useMemo(
+    () => organizations.filter((org) => org.id !== route.params.organizationId),
+    [organizations, route.params.organizationId],
+  );
 
   const Container = Platform.OS === "web" ? View : SafeAreaView;
   const containerProps =
@@ -207,7 +258,7 @@ export const NewMessageScreen: React.FC = () => {
           style={styles.backButton}
         >
           <Text variant="body" color="primary">
-            ← {selectedOrganization ? "Back" : "Back"}
+            ← Back
           </Text>
         </TouchableOpacity>
         <Text variant="h3" style={styles.headerTitle}>
@@ -217,25 +268,40 @@ export const NewMessageScreen: React.FC = () => {
       </View>
 
       {!selectedOrganization ? (
-        // Step 1: Select Organization
         <ScrollView
           style={styles.content}
           contentContainerStyle={styles.contentContainer}
         >
-          <Text variant="body" color="textSecondary" style={styles.instructions}>
+          <Text
+            variant="body"
+            color="textSecondary"
+            style={styles.instructions}
+          >
             Select an organization to start a new conversation
           </Text>
 
-          {fakeOrganizations.map((org) => (
-            <OrganizationItem
-              key={org.id}
-              organization={org}
-              onSelect={() => handleSelectOrganization(org)}
-            />
-          ))}
+          {loadingOrganizations ? (
+            <View style={styles.loadingState}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text
+                variant="body"
+                color="textSecondary"
+                style={styles.loadingText}
+              >
+                Loading organizations...
+              </Text>
+            </View>
+          ) : (
+            visibleOrganizations.map((org) => (
+              <OrganizationItem
+                key={org.id}
+                organization={org}
+                onSelect={() => handleSelectOrganization(org)}
+              />
+            ))
+          )}
         </ScrollView>
       ) : (
-        // Step 2: Select Members
         <>
           <ScrollView
             style={styles.content}
@@ -246,34 +312,50 @@ export const NewMessageScreen: React.FC = () => {
               color="textSecondary"
               style={styles.instructions}
             >
-              Select members from {selectedOrganization.name} to include in the conversation
+              Select members from {selectedOrganization.name} to include in the
+              conversation
             </Text>
 
-            {selectedOrganization.members.map((member) => (
-              <View key={member.id} style={styles.memberItem}>
-                <View style={styles.memberAvatar}>
-                  <Text
-                    variant="caption"
-                    color="white"
-                    style={styles.memberAvatarText}
-                  >
-                    {getInitials(member.name)}
-                  </Text>
-                </View>
-                <View style={styles.memberInfo}>
-                  <Text variant="body" style={styles.memberName}>
-                    {member.name}
-                  </Text>
-                  <Text variant="caption" color="textSecondary">
-                    {member.role}
-                  </Text>
-                </View>
-                <Checkbox
-                  value={selectedMembers.has(member.id)}
-                  onToggle={() => handleToggleMember(member.id)}
-                />
+            {loadingMembers ? (
+              <View style={styles.loadingState}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text
+                  variant="body"
+                  color="textSecondary"
+                  style={styles.loadingText}
+                >
+                  Loading members...
+                </Text>
               </View>
-            ))}
+            ) : (
+              selectedOrganization.members
+                .filter((member) => member.user_id !== user?.id)
+                .map((member) => (
+                  <View key={member.user_id} style={styles.memberItem}>
+                    <View style={styles.memberAvatar}>
+                      <Text
+                        variant="caption"
+                        color="white"
+                        style={styles.memberAvatarText}
+                      >
+                        {getInitials(member.profile_full_name ?? "Unknown User")}
+                      </Text>
+                    </View>
+                    <View style={styles.memberInfo}>
+                      <Text variant="body" style={styles.memberName}>
+                        {member.profile_full_name ?? "Unknown User"}
+                      </Text>
+                      <Text variant="caption" color="textSecondary">
+                        {member.role}
+                      </Text>
+                    </View>
+                    <Checkbox
+                      value={selectedMembers.has(member.user_id)}
+                      onToggle={() => handleToggleMember(member.user_id)}
+                    />
+                  </View>
+                ))
+            )}
           </ScrollView>
 
           {selectedCount > 0 && (
@@ -283,11 +365,13 @@ export const NewMessageScreen: React.FC = () => {
                 color="textSecondary"
                 style={styles.selectedCount}
               >
-                {selectedCount} {selectedCount === 1 ? "person" : "people"} selected
+                {selectedCount} {selectedCount === 1 ? "person" : "people"}{" "}
+                selected
               </Text>
               <Button
                 variant="primary"
                 onPress={handleCreateSession}
+                loading={submitting}
                 style={styles.createButton}
               >
                 <Text variant="label" color="white">
@@ -298,6 +382,12 @@ export const NewMessageScreen: React.FC = () => {
           )}
         </>
       )}
+
+      {error ? (
+        <Text variant="caption" color="error" style={styles.errorText}>
+          {error}
+        </Text>
+      ) : null}
     </Container>
   );
 };
@@ -373,9 +463,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: spacing.xs,
   },
-  membersList: {
-    padding: spacing.sm,
-  },
   memberItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -403,6 +490,15 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginBottom: spacing.xs,
   },
+  loadingState: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.lg,
+  },
+  loadingText: {
+    marginLeft: spacing.sm,
+  },
   footer: {
     padding: spacing.lg,
     borderTopWidth: 1,
@@ -416,5 +512,8 @@ const styles = StyleSheet.create({
   createButton: {
     width: "100%",
   },
+  errorText: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+  },
 });
-
