@@ -6,7 +6,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "tsx src/app.ts"
+    "start": "tsx src/app.ts",
+    "generate:frontend-types": "node scripts/generate-frontend-types.mjs"
   },
   "keywords": [],
   "author": "",

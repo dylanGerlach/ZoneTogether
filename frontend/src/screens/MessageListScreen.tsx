@@ -2,8 +2,9 @@
  * Message List Screen - Displays all conversation threads
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   View,
   StyleSheet,
   FlatList,
@@ -12,73 +13,50 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Text } from "../components";
+import { useAuthContext } from "../context/AuthContext";
 import { colors, spacing } from "../theme";
-import { RootStackParamList } from "../types";
+import {
+  ConversationVM,
+  MessageSessionUser,
+  RootStackParamList,
+} from "../types";
+import { fetchUserSessions } from "../utils/backendApi";
 
 type MessageListScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
   "MessageList"
 >;
+type MessageListScreenRouteProp = RouteProp<RootStackParamList, "MessageList">;
 
-interface Conversation {
-  id: string;
-  title: string;
-  lastMessage: string;
-  timestamp: string;
-  isGroup: boolean;
-  unreadCount?: number;
+function formatTimestampLabel(value?: string): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-// Fake data
-const fakeConversations: Conversation[] = [
-  {
-    id: "1",
-    title: "John Doe",
-    lastMessage: "Hey, are we still on for the cleanup this weekend?",
-    timestamp: "10:30 AM",
-    isGroup: false,
-    unreadCount: 2,
-  },
-  {
-    id: "2",
-    title: "Community Cleanup Group",
-    lastMessage: "Sarah: Great work everyone! The park looks amazing.",
-    timestamp: "Yesterday",
+function mapSessionToConversation(
+  sessionUser: MessageSessionUser,
+): ConversationVM | null {
+  if (
+    !sessionUser.message_session ||
+    typeof sessionUser.message_session === "string"
+  ) {
+    return null;
+  }
+
+  const session = sessionUser.message_session;
+  return {
+    ...session,
+    timestampLabel: formatTimestampLabel(
+      session.updated_at ?? session.created_at,
+    ),
     isGroup: true,
-  },
-  {
-    id: "3",
-    title: "Jane Smith",
-    lastMessage: "Thanks for organizing this!",
-    timestamp: "Yesterday",
-    isGroup: false,
-  },
-  {
-    id: "4",
-    title: "Downtown Volunteers",
-    lastMessage: "Mike: Can someone bring extra trash bags?",
-    timestamp: "2 days ago",
-    isGroup: true,
-    unreadCount: 5,
-  },
-  {
-    id: "5",
-    title: "Alex Johnson",
-    lastMessage: "See you there!",
-    timestamp: "3 days ago",
-    isGroup: false,
-  },
-  {
-    id: "6",
-    title: "Beach Cleanup Team",
-    lastMessage: "Emma: Weather looks perfect for Saturday!",
-    timestamp: "1 week ago",
-    isGroup: true,
-  },
-];
+  };
+}
 
 const getInitials = (name: string): string => {
   return name
@@ -90,7 +68,7 @@ const getInitials = (name: string): string => {
 };
 
 const ConversationItem: React.FC<{
-  conversation: Conversation;
+  conversation: ConversationVM;
   onPress: () => void;
 }> = ({ conversation, onPress }) => {
   return (
@@ -112,7 +90,7 @@ const ConversationItem: React.FC<{
             {conversation.title}
           </Text>
           <Text variant="caption" color="textTertiary" style={styles.timestamp}>
-            {conversation.timestamp}
+            {conversation.timestampLabel}
           </Text>
         </View>
         <View style={styles.messageRow}>
@@ -122,7 +100,7 @@ const ConversationItem: React.FC<{
             style={styles.lastMessage}
             numberOfLines={1}
           >
-            {conversation.lastMessage}
+            {conversation.last_message_sent ?? ""}
           </Text>
           {conversation.unreadCount && conversation.unreadCount > 0 && (
             <View style={styles.badge}>
@@ -140,22 +118,56 @@ const ConversationItem: React.FC<{
 };
 
 export const MessageListScreen: React.FC = () => {
+  const { session } = useAuthContext();
   const navigation = useNavigation<MessageListScreenNavigationProp>();
+  const route = useRoute<MessageListScreenRouteProp>();
+  const { organizationId, organizationName } = route.params;
   const [searchQuery, setSearchQuery] = useState("");
+  const [conversations, setConversations] = useState<ConversationVM[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadConversations = useCallback(async () => {
+    if (!session) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const sessionUsers = await fetchUserSessions(session);
+      const mapped = sessionUsers
+        .map(mapSessionToConversation)
+        .filter((item): item is ConversationVM => item !== null)
+        .filter((item) => item.organization_id === organizationId);
+      setConversations(mapped);
+    } catch (loadError) {
+      const message =
+        loadError instanceof Error
+          ? loadError.message
+          : "Unable to load conversations right now.";
+      setError(message);
+      setConversations([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [organizationId, session]);
+
+  useEffect(() => {
+    void loadConversations();
+  }, [loadConversations]);
 
   const filteredConversations = useMemo(() => {
     if (!searchQuery.trim()) {
-      return fakeConversations;
+      return conversations;
     }
     const query = searchQuery.toLowerCase();
-    return fakeConversations.filter(
+    return conversations.filter(
       (conv) =>
         conv.title.toLowerCase().includes(query) ||
-        conv.lastMessage.toLowerCase().includes(query)
+        (conv.last_message_sent ?? "").toLowerCase().includes(query),
     );
-  }, [searchQuery]);
+  }, [conversations, searchQuery]);
 
-  const handleConversationPress = (conversation: Conversation) => {
+  const handleConversationPress = (conversation: ConversationVM) => {
     navigation.navigate("MessageDetail", {
       conversationId: conversation.id,
       title: conversation.title,
@@ -172,19 +184,35 @@ export const MessageListScreen: React.FC = () => {
     <Container {...containerProps}>
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.navigate("Home")}
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+              return;
+            }
+            navigation.navigate("Organization", { organizationId, organizationName });
+          }}
           style={styles.backButton}
         >
           <Text variant="body" color="primary">
-            ← Go back to Home
+            ← Organizations
           </Text>
         </TouchableOpacity>
         <View style={styles.titleRow}>
-          <Text variant="h1" style={styles.headerTitle}>
-            Messages
-          </Text>
+          <View style={styles.headerTitleContainer}>
+            <Text variant="h1" style={styles.headerTitle}>
+              {organizationName}
+            </Text>
+            <Text variant="caption" color="textSecondary">
+              Messages
+            </Text>
+          </View>
           <TouchableOpacity
-            onPress={() => navigation.navigate("NewMessage")}
+            onPress={() =>
+              navigation.navigate("NewMessage", {
+                organizationId,
+                organizationName,
+              })
+            }
             style={styles.newMessageButton}
           >
             <Text
@@ -215,6 +243,48 @@ export const MessageListScreen: React.FC = () => {
         )}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            {loading ? (
+              <>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text
+                  variant="body"
+                  color="textSecondary"
+                  style={styles.loadingText}
+                >
+                  Loading conversations...
+                </Text>
+              </>
+            ) : error ? (
+              <>
+                <Text variant="h3" style={styles.emptyStateTitle}>
+                  Couldn't load messages
+                </Text>
+                <Text
+                  variant="body"
+                  color="textSecondary"
+                  style={styles.emptyStateBody}
+                >
+                  {error}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text variant="h3" style={styles.emptyStateTitle}>
+                  No conversations yet
+                </Text>
+                <Text
+                  variant="body"
+                  color="textSecondary"
+                  style={styles.emptyStateBody}
+                >
+                  Start your first message thread in this organization.
+                </Text>
+              </>
+            )}
+          </View>
+        }
       />
     </Container>
   );
@@ -242,10 +312,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: spacing.sm,
   },
-  headerTitle: {
-    fontSize: 34,
-    fontWeight: "700",
+  headerTitleContainer: {
     flex: 1,
+    marginRight: spacing.md,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "700",
   },
   newMessageButton: {
     backgroundColor: colors.primary,
@@ -272,6 +345,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingVertical: spacing.xs,
+    flexGrow: 1,
   },
   conversationItem: {
     flexDirection: "row",
@@ -340,5 +414,22 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.border,
     marginLeft: 70,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xxl,
+  },
+  emptyStateTitle: {
+    marginBottom: spacing.sm,
+    textAlign: "center",
+  },
+  emptyStateBody: {
+    textAlign: "center",
+  },
+  loadingText: {
+    marginTop: spacing.sm,
   },
 });

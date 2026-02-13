@@ -2,8 +2,9 @@
  * Message Detail Screen - Displays messages in a conversation
  */
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   View,
   StyleSheet,
   FlatList,
@@ -17,8 +18,11 @@ import { useRoute, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
 import { Text } from "../components";
+import { useAuthContext } from "../context/AuthContext";
 import { colors, spacing } from "../theme";
-import { RootStackParamList } from "../types";
+import { Message as ApiMessage } from "../types";
+import { MessageVM, RootStackParamList } from "../types";
+import { createMessage, fetchSessionMessages } from "../utils/backendApi";
 
 type MessageDetailScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -30,63 +34,19 @@ type MessageDetailScreenRouteProp = RouteProp<
   "MessageDetail"
 >;
 
-interface Message {
-  id: string;
-  text: string;
-  senderId: string;
-  senderName: string;
-  timestamp: string;
-  isOwn: boolean;
+function mapApiMessageToVM(
+  message: ApiMessage,
+  currentUserId?: string,
+): MessageVM {
+  const isOwn = Boolean(currentUserId && message.user_id === currentUserId);
+  return {
+    ...message,
+    senderName: isOwn ? "You" : (message.profile_full_name ?? "Unknown User"),
+    isOwn,
+  };
 }
 
-// Fake data
-const getFakeMessages = (conversationId: string): Message[] => {
-  const messages: Message[] = [
-    {
-      id: "1",
-      text: "Hey! Are we still on for the cleanup this weekend?",
-      senderId: "other",
-      senderName: "John Doe",
-      timestamp: "10:25 AM",
-      isOwn: false,
-    },
-    {
-      id: "2",
-      text: "Yes, absolutely! Looking forward to it.",
-      senderId: "me",
-      senderName: "You",
-      timestamp: "10:26 AM",
-      isOwn: true,
-    },
-    {
-      id: "3",
-      text: "Great! I'll bring some extra trash bags and gloves.",
-      senderId: "other",
-      senderName: "John Doe",
-      timestamp: "10:27 AM",
-      isOwn: false,
-    },
-    {
-      id: "4",
-      text: "Perfect, thanks! See you Saturday at 9 AM.",
-      senderId: "me",
-      senderName: "You",
-      timestamp: "10:28 AM",
-      isOwn: true,
-    },
-    {
-      id: "5",
-      text: "Sounds good! See you there!",
-      senderId: "other",
-      senderName: "John Doe",
-      timestamp: "10:30 AM",
-      isOwn: false,
-    },
-  ];
-  return messages;
-};
-
-const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
+const MessageBubble: React.FC<{ message: MessageVM }> = ({ message }) => {
   return (
     <View
       style={[
@@ -104,31 +64,84 @@ const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
         color={message.isOwn ? "white" : "textPrimary"}
         style={styles.messageText}
       >
-        {message.text}
+        {message.message}
       </Text>
       <Text
         variant="caption"
         color={message.isOwn ? "textInverse" : "textTertiary"}
         style={styles.timestamp}
       >
-        {message.timestamp}
+        {new Date(message.timestamp).toLocaleTimeString([], {
+          hour: "numeric",
+          minute: "2-digit",
+        })}
       </Text>
     </View>
   );
 };
 
 export const MessageDetailScreen: React.FC = () => {
+  const { session, user } = useAuthContext();
   const route = useRoute<MessageDetailScreenRouteProp>();
   const navigation = useNavigation<MessageDetailScreenNavigationProp>();
   const { conversationId, title } = route.params;
 
-  const [messages] = useState<Message[]>(getFakeMessages(conversationId));
+  const [messages, setMessages] = useState<MessageVM[]>([]);
   const [inputText, setInputText] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSend = () => {
-    if (inputText.trim()) {
-      // In real app, this would send the message
+  const loadMessages = useCallback(async () => {
+    if (!session) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetchSessionMessages(session, conversationId);
+      setMessages(
+        response.map((message) => mapApiMessageToVM(message, user?.id)),
+      );
+    } catch (loadError) {
+      const message =
+        loadError instanceof Error
+          ? loadError.message
+          : "Unable to load messages right now.";
+      setError(message);
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [conversationId, session, user?.id]);
+
+  useEffect(() => {
+    void loadMessages();
+  }, [loadMessages]);
+
+  const handleSend = async () => {
+    if (!session || !inputText.trim() || sending) return;
+
+    const content = inputText.trim();
+    setSending(true);
+    setError(null);
+    try {
+      const created = await createMessage(session, {
+        sessionId: conversationId,
+        content,
+      });
+      setMessages((current) => [
+        ...current,
+        mapApiMessageToVM(created, user?.id),
+      ]);
       setInputText("");
+    } catch (sendError) {
+      const message =
+        sendError instanceof Error
+          ? sendError.message
+          : "Unable to send message right now.";
+      setError(message);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -159,6 +172,25 @@ export const MessageDetailScreen: React.FC = () => {
           </Text>
           <View style={styles.backButton} />
         </View>
+
+        {loading && messages.length === 0 ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text
+              variant="body"
+              color="textSecondary"
+              style={styles.loadingText}
+            >
+              Loading messages...
+            </Text>
+          </View>
+        ) : null}
+
+        {error ? (
+          <Text variant="caption" color="error" style={styles.errorText}>
+            {error}
+          </Text>
+        ) : null}
 
         <FlatList
           data={messages}
@@ -194,6 +226,7 @@ export const MessageDetailScreen: React.FC = () => {
               <TouchableOpacity
                 onPress={handleSend}
                 style={styles.sendIcon}
+                disabled={sending}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Text
@@ -240,8 +273,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   messagesList: {
+    flexGrow: 1,
     padding: spacing.md,
     paddingBottom: spacing.lg,
+  },
+  loadingState: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginLeft: spacing.sm,
+  },
+  errorText: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
   },
   messageContainer: {
     marginBottom: spacing.sm,

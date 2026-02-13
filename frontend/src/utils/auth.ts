@@ -7,6 +7,14 @@ export interface AuthResponse {
   error: AuthError | null;
 }
 
+function createConfigError(): AuthError {
+  return {
+    name: "AuthError",
+    message: "Supabase not configured",
+    status: 0,
+  } as AuthError;
+}
+
 /**
  * Sign up a new user with email and password
  * Can include additional profile information in user metadata
@@ -17,7 +25,6 @@ export async function signUp(
   metadata?: {
     fullName?: string;
     phoneNumber?: string;
-    role?: 'volunteer' | 'organizer';
   }
 ): Promise<AuthResponse> {
   const client = getSupabaseClient();
@@ -25,11 +32,7 @@ export async function signUp(
     return {
       user: null,
       session: null,
-      error: {
-        name: "AuthError",
-        message: "Supabase not configured",
-        status: 0,
-      } as any,
+      error: createConfigError(),
     };
   const { data, error } = await client.auth.signUp({
     email,
@@ -58,11 +61,7 @@ export async function signIn(
     return {
       user: null,
       session: null,
-      error: {
-        name: "AuthError",
-        message: "Supabase not configured",
-        status: 0,
-      } as any,
+      error: createConfigError(),
     };
   const { data, error } = await client.auth.signInWithPassword({
     email,
