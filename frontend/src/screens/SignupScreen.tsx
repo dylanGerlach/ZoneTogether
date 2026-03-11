@@ -113,6 +113,7 @@ export const SignupScreen: React.FC = () => {
     try {
     await signUp(email, password, {
       fullName,
+      email,
     });
       Alert.alert(
         "Success",
