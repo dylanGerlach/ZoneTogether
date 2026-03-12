@@ -70,11 +70,16 @@ export class OrganizationService {
 
   async getAllUsersInOrganization(
     organizationId: UUID,
+    search?: string,
   ): Promise<GetOrganizationUsersResponse> {
-    const { data, error } = await this.client
+    let query= this.client
       .from("organization_members")
-      .select("user_id, role, profiles(id, full_name)")
-      .eq("organization_id", organizationId);
+      .select("user_id, role, profiles!inner(id, full_name)")
+      .eq("organization_id", organizationId)
+    if (search) {
+      query = query.ilike("profiles.full_name", `%${search ?? ""}%`);
+    }
+    const { data, error } = await query;
     if (error) throw error;
     const members = (data ?? []) as Array<{
       user_id: UUID;
