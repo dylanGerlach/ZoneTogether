@@ -18,6 +18,19 @@ type ZoneNameTakenPayload = {
   existingZoneName: string;
 };
 
+type AdjustErrorCode =
+  | "adjust_missing_overlap_ids"
+  | "adjust_overlap_zone_missing"
+  | "adjust_geometry_invalid"
+  | "adjust_inside_zone"
+  | "adjust_overlap_processing_failed"
+  | "adjust_too_small";
+
+type AdjustErrorPayload = {
+  error: string;
+  code: AdjustErrorCode;
+};
+
 type UseZoneMapControllerArgs = {
   sessionToken: unknown;
   organizationId: string;
@@ -99,6 +112,41 @@ function getZoneNameTakenPayload(error: unknown): ZoneNameTakenPayload | null {
     return apiError.body as ZoneNameTakenPayload;
   }
   return null;
+}
+
+function getAdjustErrorPayload(error: unknown): AdjustErrorPayload | null {
+  const apiError = error as ApiRequestError | null;
+  if (!apiError || !apiError.body || apiError.status < 400) return null;
+
+  if (
+    typeof apiError.body === "object" &&
+    "code" in apiError.body &&
+    typeof apiError.body.code === "string" &&
+    "error" in apiError.body &&
+    typeof apiError.body.error === "string"
+  ) {
+    return apiError.body as AdjustErrorPayload;
+  }
+  return null;
+}
+
+function getAdjustFallbackMessage(payload: AdjustErrorPayload): string {
+  switch (payload.code) {
+    case "adjust_inside_zone":
+      return "Your draft is fully inside another zone. Redraw a larger outline that surrounds open area.";
+    case "adjust_too_small":
+      return "The adjusted result became too small to save. Redraw with a slightly larger boundary.";
+    case "adjust_geometry_invalid":
+      return "That shape could not be auto-adjusted safely. Try redrawing with fewer sharp zig-zags.";
+    case "adjust_overlap_processing_failed":
+      return "Auto-adjust could not compute a stable result. Please redraw manually and try again.";
+    case "adjust_overlap_zone_missing":
+      return "An overlapping zone changed while you were editing. Refresh zones and try again.";
+    case "adjust_missing_overlap_ids":
+      return "We could not identify the overlapping zones. Redraw the zone and try again.";
+    default:
+      return payload.error;
+  }
 }
 
 export function useZoneMapController({
@@ -345,7 +393,7 @@ export function useZoneMapController({
       if (!saved) {
         Alert.alert(
           "Could not auto-adjust all overlaps",
-          "Please redraw manually and try again with a smaller area.",
+          "Please redraw manually and try again with a cleaner boundary.",
         );
         return;
       }
@@ -358,6 +406,11 @@ export function useZoneMapController({
     } catch (error) {
       // Keep overlap context available for retry/redraw when auto-adjust fails.
       setOverlapPayload((previous) => previous ?? currentPayload);
+      const adjustError = getAdjustErrorPayload(error);
+      if (adjustError) {
+        Alert.alert("Redo Zone could not auto-adjust", getAdjustFallbackMessage(adjustError));
+        return;
+      }
       Alert.alert("Redo Zone failed", getErrorMessage(error));
     } finally {
       setAdjusting(false);

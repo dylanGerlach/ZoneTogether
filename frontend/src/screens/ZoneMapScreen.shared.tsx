@@ -64,9 +64,10 @@ export const ZoneMapScreen: React.FC = () => {
 
   const isExpoGo = Constants.appOwnership === "expo";
   const requiresIosDevBuild = Platform.OS === "ios" && isExpoGo;
+  const env = process.env as Record<string, string | undefined>;
   const extra = (Constants?.expoConfig?.extra ?? {}) as { GOOGLE_MAPS_API_KEY?: string };
   const googleMapsApiKey =
-    process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? extra.GOOGLE_MAPS_API_KEY ?? "";
+    env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? extra.GOOGLE_MAPS_API_KEY ?? "";
   const missingNativeGoogleMapsKey =
     Platform.OS !== "web" && googleMapsApiKey.trim().length === 0;
   const mapUnavailableReason = requiresIosDevBuild

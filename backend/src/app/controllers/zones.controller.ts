@@ -3,7 +3,6 @@ import {
   area,
   booleanIntersects,
   booleanValid,
-  booleanWithin,
   cleanCoords,
   difference,
   featureCollection,
@@ -14,6 +13,8 @@ import {
 
 import { InMemoryZoneRepository } from "../../db/zones.db.js";
 import type {
+  AdjustZoneErrorCode,
+  AdjustZoneErrorResponse,
   AdjustZoneRequest,
   AdjustZoneResponse,
   ApiErrorResponse,
@@ -32,6 +33,7 @@ import type {
 
 const zoneRepository = new InMemoryZoneRepository();
 const MIN_ADJUSTED_AREA = 1e-7;
+const AREA_EPSILON = 1e-9;
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -121,9 +123,10 @@ function hasDisallowedOverlap(
   newGeometry: ReturnType<typeof polygon> | ReturnType<typeof multiPolygon>,
   existingGeometry: ReturnType<typeof polygon> | ReturnType<typeof multiPolygon>,
 ): boolean {
-  if (!booleanIntersects(newGeometry, existingGeometry)) return false;
+  const intersectsGeometry = safeBooleanIntersects(newGeometry, existingGeometry);
+  if (!intersectsGeometry) return false;
 
-  const sharedArea = intersect(featureCollection([newGeometry as any, existingGeometry as any]) as any);
+  const sharedArea = safeIntersect(newGeometry, existingGeometry);
   if (!sharedArea) return false;
 
   // Shared boundaries are valid; only reject positive-area overlap.
@@ -152,6 +155,167 @@ function toAdjustedGeometryFromDifference(diffGeometry: unknown): ZoneGeometry |
   }
 
   return null;
+}
+
+function normalizeRing(ring: [number, number][]): [number, number][] | null {
+  const closed = closeRing(ring as number[][]) as [number, number][];
+  const deduped: [number, number][] = [];
+  for (const point of closed) {
+    const previous = deduped[deduped.length - 1];
+    if (!previous || previous[0] !== point[0] || previous[1] !== point[1]) {
+      deduped.push(point);
+    }
+  }
+  if (deduped.length < 4) return null;
+  const uniquePoints = new Set(deduped.map((point) => `${point[0]},${point[1]}`));
+  if (uniquePoints.size < 3) return null;
+  return deduped;
+}
+
+function sanitizeZoneGeometry(geometry: ZoneGeometry): ZoneGeometry | null {
+  if (geometry.type === "Polygon") {
+    const [outerRing, ...holes] = geometry.coordinates;
+    const normalizedOuter = normalizeRing(outerRing as [number, number][]);
+    if (!normalizedOuter) return null;
+    const normalizedHoles = holes
+      .map((ring) => normalizeRing(ring as [number, number][]))
+      .filter((ring): ring is [number, number][] => Boolean(ring));
+    return {
+      type: "Polygon",
+      coordinates: [normalizedOuter, ...normalizedHoles],
+    };
+  }
+
+  const polygons = geometry.coordinates
+    .map((poly) => {
+      const [outerRing, ...holes] = poly;
+      const normalizedOuter = normalizeRing(outerRing as [number, number][]);
+      if (!normalizedOuter) return null;
+      const normalizedHoles = holes
+        .map((ring) => normalizeRing(ring as [number, number][]))
+        .filter((ring): ring is [number, number][] => Boolean(ring));
+      return [normalizedOuter, ...normalizedHoles];
+    })
+    .filter((poly): poly is [number, number][][] => Boolean(poly))
+    .filter((poly) => poly.length > 0);
+
+  if (polygons.length === 0) return null;
+  return {
+    type: "MultiPolygon",
+    coordinates: polygons,
+  };
+}
+
+function safeCleanCoords<T>(feature: T): T | null {
+  try {
+    return cleanCoords(feature as any) as T;
+  } catch {
+    return null;
+  }
+}
+
+function safeBooleanIntersects(
+  left: ReturnType<typeof polygon> | ReturnType<typeof multiPolygon>,
+  right: ReturnType<typeof polygon> | ReturnType<typeof multiPolygon>,
+): boolean {
+  try {
+    return booleanIntersects(left, right);
+  } catch {
+    return false;
+  }
+}
+
+function safeIntersect(
+  left: ReturnType<typeof polygon> | ReturnType<typeof multiPolygon>,
+  right: ReturnType<typeof polygon> | ReturnType<typeof multiPolygon>,
+) {
+  try {
+    return intersect(featureCollection([left as any, right as any]) as any);
+  } catch {
+    return null;
+  }
+}
+
+function safeDifference(
+  left: ReturnType<typeof polygon> | ReturnType<typeof multiPolygon>,
+  right: ReturnType<typeof polygon> | ReturnType<typeof multiPolygon>,
+) {
+  try {
+    return difference(featureCollection([left as any, right as any]));
+  } catch {
+    return null;
+  }
+}
+
+function overlapAreaBetween(
+  left: ReturnType<typeof polygon> | ReturnType<typeof multiPolygon>,
+  right: ReturnType<typeof polygon> | ReturnType<typeof multiPolygon>,
+): number {
+  const overlap = safeIntersect(left, right);
+  if (!overlap) return 0;
+  try {
+    return area(overlap);
+  } catch {
+    return 0;
+  }
+}
+
+function collectAutoOverlapZoneIds(
+  organizationId: UUID,
+  candidateGeometry: ReturnType<typeof polygon> | ReturnType<typeof multiPolygon>,
+): string[] {
+  const existingZones = zoneRepository.listByOrganization(organizationId);
+  const overlapCandidates: Array<{ id: string; overlapArea: number }> = [];
+
+  for (const zone of existingZones) {
+    if (!isZoneFeature(zone) || !zone.id) continue;
+    const normalizedZone = normalizeFeature(zone);
+    const sanitizedZoneGeometry = sanitizeZoneGeometry(normalizedZone.geometry);
+    if (!sanitizedZoneGeometry) continue;
+
+    const zoneGeometry = safeCleanCoords(
+      toTurfFeature({
+        ...normalizedZone,
+        geometry: sanitizedZoneGeometry,
+      }),
+    );
+    if (!zoneGeometry || !booleanValid(zoneGeometry)) continue;
+
+    const overlapArea = overlapAreaBetween(candidateGeometry, zoneGeometry);
+    if (overlapArea > MIN_ADJUSTED_AREA) {
+      overlapCandidates.push({
+        id: String(zone.id),
+        overlapArea,
+      });
+    }
+  }
+
+  // Process largest overlaps first to reduce geometry fragmentation.
+  overlapCandidates.sort((a, b) => b.overlapArea - a.overlapArea);
+  return overlapCandidates.map((candidate) => candidate.id);
+}
+
+function isFullyWithinExisting(
+  candidate: ReturnType<typeof polygon> | ReturnType<typeof multiPolygon>,
+  existing: ReturnType<typeof polygon> | ReturnType<typeof multiPolygon>,
+): boolean {
+  const candidateArea = area(candidate);
+  if (candidateArea <= AREA_EPSILON) return false;
+
+  const overlap = safeIntersect(candidate, existing);
+  if (!overlap) return false;
+
+  const overlapArea = area(overlap);
+  return overlapArea >= candidateArea - AREA_EPSILON;
+}
+
+function sendAdjustError(
+  res: Response<AdjustZoneResponse | AdjustZoneErrorResponse | ApiErrorResponse>,
+  status: number,
+  code: AdjustZoneErrorCode,
+  error: string,
+) {
+  return res.status(status).json({ code, error });
 }
 
 function toZoneGeometryFromTurfFeature(
@@ -329,8 +493,8 @@ export async function updateZone(
 }
 
 export async function adjustZone(
-  req: Request<{}, AdjustZoneResponse | ApiErrorResponse, AdjustZoneRequest>,
-  res: Response<AdjustZoneResponse | ApiErrorResponse>,
+  req: Request<{}, AdjustZoneResponse | AdjustZoneErrorResponse | ApiErrorResponse, AdjustZoneRequest>,
+  res: Response<AdjustZoneResponse | AdjustZoneErrorResponse | ApiErrorResponse>,
 ) {
   const { organizationId, newZone, overlappingZoneId, overlappingZoneIds } = req.body ?? {};
 
@@ -338,7 +502,7 @@ export async function adjustZone(
     return res.status(400).json({ error: "organizationId is required" });
   }
   if (!isZoneFeature(newZone)) {
-    return res.status(400).json({ error: "Invalid zone geometry" });
+    return sendAdjustError(res, 400, "adjust_geometry_invalid", "Invalid zone geometry");
   }
   const targetOverlapIds = (
     Array.isArray(overlappingZoneIds)
@@ -348,56 +512,140 @@ export async function adjustZone(
         : []
   );
   if (targetOverlapIds.length === 0) {
-    return res.status(400).json({ error: "overlappingZoneId or overlappingZoneIds is required" });
+    return sendAdjustError(
+      res,
+      400,
+      "adjust_missing_overlap_ids",
+      "overlappingZoneId or overlappingZoneIds is required",
+    );
   }
   const normalizedNewZone = normalizeFeature(newZone);
-  let cleanedAdjusted = cleanCoords(toTurfFeature(normalizedNewZone));
-  if (!booleanValid(cleanedAdjusted)) {
-    return res.status(400).json({ error: "Invalid zone geometry after cleanup" });
+  const sanitizedInputGeometry = sanitizeZoneGeometry(normalizedNewZone.geometry);
+  if (!sanitizedInputGeometry) {
+    return sendAdjustError(res, 400, "adjust_geometry_invalid", "Invalid zone geometry after normalization");
   }
 
-  for (const overlapId of targetOverlapIds) {
+  let cleanedAdjusted = safeCleanCoords(
+    toTurfFeature({
+      ...normalizedNewZone,
+      geometry: sanitizedInputGeometry,
+    }),
+  );
+  if (!cleanedAdjusted) {
+    return sendAdjustError(res, 400, "adjust_geometry_invalid", "Invalid zone geometry after cleanup");
+  }
+  if (!booleanValid(cleanedAdjusted)) {
+    return sendAdjustError(res, 400, "adjust_geometry_invalid", "Invalid zone geometry after cleanup");
+  }
+
+  const autoOverlapIds = collectAutoOverlapZoneIds(organizationId as UUID, cleanedAdjusted);
+  const effectiveOverlapIds = Array.from(new Set([...targetOverlapIds, ...autoOverlapIds]));
+  if (effectiveOverlapIds.length === 0) {
+    return sendAdjustError(
+      res,
+      400,
+      "adjust_missing_overlap_ids",
+      "Could not identify overlapping zones to adjust around",
+    );
+  }
+
+  for (const overlapId of effectiveOverlapIds) {
     const overlappingZone = zoneRepository.findById(organizationId as UUID, overlapId);
     if (!overlappingZone) {
-      return res.status(404).json({ error: "Overlapping zone not found" });
+      return sendAdjustError(res, 404, "adjust_overlap_zone_missing", "Overlapping zone not found");
     }
     const normalizedExisting = normalizeFeature(overlappingZone);
-    const existingPolygon = cleanCoords(toTurfFeature(normalizedExisting));
+    const sanitizedExistingGeometry = sanitizeZoneGeometry(normalizedExisting.geometry);
+    if (!sanitizedExistingGeometry) {
+      return sendAdjustError(res, 400, "adjust_geometry_invalid", "Overlapping zone has invalid geometry");
+    }
+
+    const existingPolygon = safeCleanCoords(
+      toTurfFeature({
+        ...normalizedExisting,
+        geometry: sanitizedExistingGeometry,
+      }),
+    );
+    if (!existingPolygon) {
+      return sendAdjustError(
+        res,
+        400,
+        "adjust_geometry_invalid",
+        "Invalid overlapping zone geometry after cleanup",
+      );
+    }
 
     if (!booleanValid(existingPolygon)) {
-      return res.status(400).json({ error: "Invalid overlapping zone geometry after cleanup" });
+      return sendAdjustError(
+        res,
+        400,
+        "adjust_geometry_invalid",
+        "Invalid overlapping zone geometry after cleanup",
+      );
     }
 
-    if (booleanWithin(cleanedAdjusted, existingPolygon)) {
-      return res.status(400).json({
-        error: "Your zone is completely inside an existing zone and cannot be adjusted around it.",
-      });
+    if (!safeBooleanIntersects(cleanedAdjusted, existingPolygon)) {
+      // Geometry may have shifted after prior adjustments; skip non-overlapping zones safely.
+      continue;
     }
 
-    const diff = difference(featureCollection([cleanedAdjusted, existingPolygon]));
+    if (isFullyWithinExisting(cleanedAdjusted, existingPolygon)) {
+      return sendAdjustError(
+        res,
+        400,
+        "adjust_inside_zone",
+        "Your zone is completely inside an existing zone and cannot be adjusted around it.",
+      );
+    }
+
+    const diff = safeDifference(cleanedAdjusted, existingPolygon);
     if (!diff?.geometry) {
-      return res.status(400).json({ error: "Could not create adjusted zone from overlap" });
+      return sendAdjustError(
+        res,
+        400,
+        "adjust_overlap_processing_failed",
+        "Could not create adjusted zone from overlap",
+      );
     }
 
     const adjustedGeometry = toAdjustedGeometryFromDifference(diff.geometry);
     if (!adjustedGeometry) {
-      return res.status(400).json({ error: "Could not create adjusted zone from overlap" });
+      return sendAdjustError(
+        res,
+        400,
+        "adjust_overlap_processing_failed",
+        "Could not create adjusted zone from overlap",
+      );
+    }
+
+    const sanitizedAdjustedGeometry = sanitizeZoneGeometry(adjustedGeometry);
+    if (!sanitizedAdjustedGeometry) {
+      return sendAdjustError(
+        res,
+        400,
+        "adjust_overlap_processing_failed",
+        "Could not create adjusted zone from overlap",
+      );
     }
 
     const adjustedFeature: ZoneFeature = {
       type: "Feature",
       properties: {},
-      geometry: adjustedGeometry,
+      geometry: sanitizedAdjustedGeometry,
     };
-    cleanedAdjusted = cleanCoords(toTurfFeature(adjustedFeature));
+    const nextCleanedAdjusted = safeCleanCoords(toTurfFeature(adjustedFeature));
+    if (!nextCleanedAdjusted) {
+      return sendAdjustError(res, 400, "adjust_geometry_invalid", "Adjusted zone is invalid after cleanup");
+    }
+    cleanedAdjusted = nextCleanedAdjusted;
     if (!booleanValid(cleanedAdjusted)) {
-      return res.status(400).json({ error: "Adjusted zone is invalid after cleanup" });
+      return sendAdjustError(res, 400, "adjust_geometry_invalid", "Adjusted zone is invalid after cleanup");
     }
   }
 
   const adjustedArea = area(cleanedAdjusted);
   if (adjustedArea <= MIN_ADJUSTED_AREA) {
-    return res.status(400).json({ error: "Adjusted zone is too small to save safely" });
+    return sendAdjustError(res, 400, "adjust_too_small", "Adjusted zone is too small to save safely");
   }
 
   const adjustedZone: ZoneFeature = {
@@ -406,7 +654,7 @@ export async function adjustZone(
     properties: {
       ...normalizedNewZone.properties,
       adjusted: true,
-      originalZoneId: targetOverlapIds.join(","),
+      originalZoneId: effectiveOverlapIds.join(","),
       note: "Zone adjusted to wrap around overlapping zones",
     },
     geometry: {

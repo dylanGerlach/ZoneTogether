@@ -259,6 +259,7 @@ test("POST /zones/adjust returns 404 for missing overlap id", async () => {
 
   assert.equal(response.status, 404);
   assert.equal(response.body.error, "Overlapping zone not found");
+  assert.equal(response.body.code, "adjust_overlap_zone_missing");
 });
 
 test("POST /zones/adjust returns adjusted zone that can be saved", async () => {
@@ -316,6 +317,51 @@ test("POST /zones/adjust returns adjusted zone that can be saved", async () => {
     });
   assert.equal(saveAdjustedResponse.status, 200);
   assert.equal(saveAdjustedResponse.body.ok, true);
+});
+
+test("POST /zones/adjust returns structured error for degenerate geometry", async () => {
+  const organizationId = randomUUID();
+  const createBaseResponse = await request(app)
+    .post("/zones")
+    .set(authHeader())
+    .send({
+      organizationId,
+      feature: buildPolygon([
+        [-122.42, 37.78],
+        [-122.40, 37.78],
+        [-122.40, 37.76],
+        [-122.42, 37.76],
+      ]),
+    });
+
+  assert.equal(createBaseResponse.status, 200);
+  const overlapZoneId = String(createBaseResponse.body.id);
+
+  const degenerateResponse = await request(app)
+    .post("/zones/adjust")
+    .set(authHeader())
+    .send({
+      organizationId,
+      overlappingZoneId: overlapZoneId,
+      newZone: {
+        type: "Feature",
+        properties: { name: "Degenerate Draft" },
+        geometry: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [-122.41, 37.77],
+              [-122.41, 37.77],
+              [-122.41, 37.77],
+              [-122.41, 37.77],
+            ],
+          ],
+        },
+      },
+    });
+
+  assert.equal(degenerateResponse.status, 400);
+  assert.equal(degenerateResponse.body.code, "adjust_geometry_invalid");
 });
 
 test("POST /zones allows boundary-sharing without overlap", async () => {
@@ -403,6 +449,43 @@ test("POST /zones/adjust preserves hole geometry when wrapping around inner zone
       feature: adjustResponse.body.adjustedZone,
     });
   assert.equal(saveAdjustedResponse.status, 200);
+});
+
+test("POST /zones/adjust returns structured inside-zone error", async () => {
+  const organizationId = randomUUID();
+
+  const createOuter = await request(app)
+    .post("/zones")
+    .set(authHeader())
+    .send({
+      organizationId,
+      feature: buildPolygon([
+        [-122.42, 37.78],
+        [-122.40, 37.78],
+        [-122.40, 37.76],
+        [-122.42, 37.76],
+      ]),
+    });
+  assert.equal(createOuter.status, 200);
+
+  const insideDraft = buildPolygon([
+    [-122.415, 37.775],
+    [-122.405, 37.775],
+    [-122.405, 37.765],
+    [-122.415, 37.765],
+  ]);
+
+  const adjustResponse = await request(app)
+    .post("/zones/adjust")
+    .set(authHeader())
+    .send({
+      organizationId,
+      overlappingZoneId: String(createOuter.body.id),
+      newZone: insideDraft,
+    });
+
+  assert.equal(adjustResponse.status, 400);
+  assert.equal(adjustResponse.body.code, "adjust_inside_zone");
 });
 
 test("POST /zones/adjust returns multipolygon when overlap splits draft zone", async () => {
@@ -515,6 +598,92 @@ test("POST /zones/adjust handles multiple overlapping zones in one call", async 
       newZone: overlapResponse.body.newZone,
     });
   assert.equal(adjustResponse.status, 200);
+
+  const saveAdjustedResponse = await request(app)
+    .post("/zones")
+    .set(authHeader())
+    .send({
+      organizationId,
+      feature: adjustResponse.body.adjustedZone,
+    });
+  assert.equal(saveAdjustedResponse.status, 200);
+});
+
+test("POST /zones/adjust auto-includes all intersections even with partial overlap ids", async () => {
+  const organizationId = randomUUID();
+
+  const zonesToCreate = [
+    [
+      [-122.420, 37.780],
+      [-122.416, 37.780],
+      [-122.416, 37.776],
+      [-122.420, 37.776],
+    ],
+    [
+      [-122.414, 37.780],
+      [-122.410, 37.780],
+      [-122.410, 37.776],
+      [-122.414, 37.776],
+    ],
+    [
+      [-122.408, 37.780],
+      [-122.404, 37.780],
+      [-122.404, 37.776],
+      [-122.408, 37.776],
+    ],
+    [
+      [-122.420, 37.774],
+      [-122.416, 37.774],
+      [-122.416, 37.770],
+      [-122.420, 37.770],
+    ],
+    [
+      [-122.408, 37.774],
+      [-122.404, 37.774],
+      [-122.404, 37.770],
+      [-122.408, 37.770],
+    ],
+  ];
+
+  for (const zoneCoords of zonesToCreate) {
+    const created = await request(app)
+      .post("/zones")
+      .set(authHeader())
+      .send({
+        organizationId,
+        feature: buildPolygon(zoneCoords),
+      });
+    assert.equal(created.status, 200);
+  }
+
+  const overlapResponse = await request(app)
+    .post("/zones")
+    .set(authHeader())
+    .send({
+      organizationId,
+      feature: buildPolygon([
+        [-122.422, 37.782],
+        [-122.402, 37.782],
+        [-122.402, 37.768],
+        [-122.422, 37.768],
+      ]),
+    });
+  assert.equal(overlapResponse.status, 409);
+  assert.ok(Array.isArray(overlapResponse.body.overlappingZones));
+  assert.ok(overlapResponse.body.overlappingZones.length >= 5);
+
+  // Intentionally send only one overlap id; backend should auto-detect and process all overlaps.
+  const oneOverlapId = String(overlapResponse.body.overlappingZone.id);
+  const adjustResponse = await request(app)
+    .post("/zones/adjust")
+    .set(authHeader())
+    .send({
+      organizationId,
+      overlappingZoneId: oneOverlapId,
+      newZone: overlapResponse.body.newZone,
+    });
+  assert.equal(adjustResponse.status, 200);
+  assert.equal(adjustResponse.body.ok, true);
 
   const saveAdjustedResponse = await request(app)
     .post("/zones")

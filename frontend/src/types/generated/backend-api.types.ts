@@ -227,6 +227,18 @@ export interface AdjustZoneResponse {
   adjustedZone: ZoneFeature;
 }
 
+export type AdjustZoneErrorCode =
+  | "adjust_missing_overlap_ids"
+  | "adjust_overlap_zone_missing"
+  | "adjust_geometry_invalid"
+  | "adjust_inside_zone"
+  | "adjust_overlap_processing_failed"
+  | "adjust_too_small";
+
+export interface AdjustZoneErrorResponse extends ApiErrorResponse {
+  code: AdjustZoneErrorCode;
+}
+
 /**
  * DELETE /zones/:zoneId?organizationId=:organizationId
  */

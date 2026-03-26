@@ -44,12 +44,13 @@ function createApiRequestError(
 }
 
 function getBackendApiBaseUrl(): string {
+  const env = process.env as Record<string, string | undefined>;
   const extra = (Constants?.expoConfig?.extra ?? {}) as {
     BACKEND_API_URL?: string;
   };
 
   const baseUrl =
-    process.env.EXPO_PUBLIC_BACKEND_API_URL ??
+    env.EXPO_PUBLIC_BACKEND_API_URL ??
     extra.BACKEND_API_URL ??
     "http://localhost:3000";
 
