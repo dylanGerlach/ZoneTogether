@@ -91,10 +91,27 @@ export const OrganizationScreen: React.FC = () => {
           description="Sid please add this functionality to onboard new users"
         />
 
-        <TodoSection
-          title="Map"
-          description="Omer please import the current maps functionality you have, keep everything in the frontend"
-        />
+        <Card style={styles.card}>
+          <View style={styles.sectionHeader}>
+            <Text variant="h3">Map</Text>
+          </View>
+          <Text variant="body" color="textSecondary" style={styles.sectionDescription}>
+            Draw and manage cleanup zones for this organization.
+          </Text>
+          <TouchableOpacity
+            style={styles.primaryAction}
+            onPress={() =>
+              navigation.navigate("ZoneMap", {
+                organizationId,
+                organizationName,
+              })
+            }
+          >
+            <Text variant="label" color="white">
+              Open Zoning Map
+            </Text>
+          </TouchableOpacity>
+        </Card>
 
         <TodoSection
           title="Projects"

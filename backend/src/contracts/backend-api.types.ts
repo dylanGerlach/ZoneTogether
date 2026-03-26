@@ -9,6 +9,7 @@
 export type UUID = string;
 export type ISODateString = string;
 export type MembershipRole = "owner" | "admin" | "member";
+export type GeoJSONPosition = [number, number];
 
 export interface ApiErrorResponse {
   error: string;
@@ -136,3 +137,131 @@ export type CreateMessageResponse = Message;
  * GET /sessions/:sessionId
  */
 export type GetMessagesResponse = Message[];
+
+/**
+ * Zones GeoJSON models
+ */
+export interface ZonePolygonGeometry {
+  type: "Polygon";
+  coordinates: GeoJSONPosition[][];
+}
+
+export interface ZoneMultiPolygonGeometry {
+  type: "MultiPolygon";
+  coordinates: GeoJSONPosition[][][];
+}
+
+export type ZoneGeometry = ZonePolygonGeometry | ZoneMultiPolygonGeometry;
+
+export interface ZoneFeatureProperties {
+  name?: string;
+  created_at?: ISODateString;
+  adjusted?: boolean;
+  originalZoneId?: string;
+  note?: string;
+  [key: string]: unknown;
+}
+
+export interface ZoneFeature {
+  type: "Feature";
+  id?: UUID | string;
+  properties: ZoneFeatureProperties;
+  geometry: ZoneGeometry;
+}
+
+export interface ZoneFeatureCollection {
+  type: "FeatureCollection";
+  features: ZoneFeature[];
+}
+
+/**
+ * GET /zones?organizationId=:organizationId
+ */
+export type GetZonesResponse = ZoneFeatureCollection;
+
+/**
+ * POST /zones
+ */
+export interface CreateZoneRequest {
+  organizationId: UUID;
+  feature: ZoneFeature;
+}
+
+export interface CreateZoneResponse {
+  ok: true;
+  id: string;
+}
+
+export interface ZoneNameTakenResponse {
+  error: "zone_name_taken";
+  existingZoneId: string;
+  existingZoneName: string;
+}
+
+export interface OverlapDetectedResponse {
+  error: "overlap_detected";
+  overlappingZone: ZoneFeature;
+  overlappingZones?: ZoneFeature[];
+  newZone: ZoneFeature;
+}
+
+/**
+ * POST /zones/adjust
+ */
+export interface AdjustZoneRequest {
+  organizationId: UUID;
+  newZone: ZoneFeature;
+  overlappingZoneId?: UUID | string;
+  overlappingZoneIds?: Array<UUID | string>;
+}
+
+export interface AdjustZoneResponse {
+  ok: true;
+  adjustedZone: ZoneFeature;
+}
+
+/**
+ * DELETE /zones/:zoneId?organizationId=:organizationId
+ */
+export interface DeleteZoneResponse {
+  ok: true;
+  deletedId: string;
+}
+
+/**
+ * PUT /zones/:zoneId
+ */
+export interface UpdateZoneRequest {
+  organizationId: UUID;
+  feature: ZoneFeature;
+}
+
+export interface UpdateZoneResponse {
+  ok: true;
+  id: string;
+  updated: true;
+}
+
+/**
+ * POST /h3/generate
+ */
+export interface GenerateH3GridRequest {
+  polygon: GeoJSONPosition[];
+  resolution?: number;
+}
+
+export interface H3CellFeatureProperties {
+  h3Index: string;
+  resolution: number;
+}
+
+export interface H3CellFeature {
+  type: "Feature";
+  properties: H3CellFeatureProperties;
+  geometry: ZonePolygonGeometry;
+}
+
+export interface GenerateH3GridResponse {
+  type: "FeatureCollection";
+  features: H3CellFeature[];
+}
