@@ -2,26 +2,55 @@ import Constants from "expo-constants";
 import type { Session } from "@supabase/supabase-js";
 
 import type {
+  AdjustZoneRequest,
+  AdjustZoneResponse,
   ApiErrorResponse,
+  CreateZoneRequest,
+  CreateZoneResponse,
   CreateMessageRequest,
   CreateMessageResponse,
   CreateOrganizationRequest,
   CreateOrganizationResponse,
   CreateSessionRequest,
   CreateSessionResponse,
+  DeleteZoneResponse,
+  GenerateH3GridRequest,
+  GenerateH3GridResponse,
   GetMessagesResponse,
   GetOrganizationUsersResponse,
   GetOrganizationsResponse,
+  GetZonesResponse,
+  GeoJSONPosition,
   GetUserSessionsResponse,
+  UpdateZoneRequest,
+  UpdateZoneResponse,
+  ZoneFeature,
 } from "../types";
 
+export interface ApiRequestError extends Error {
+  status: number;
+  body?: ApiErrorResponse | Record<string, unknown> | null;
+}
+
+function createApiRequestError(
+  message: string,
+  status: number,
+  body: ApiErrorResponse | Record<string, unknown> | null,
+): ApiRequestError {
+  const error = new Error(message) as ApiRequestError;
+  error.status = status;
+  error.body = body;
+  return error;
+}
+
 function getBackendApiBaseUrl(): string {
+  const env = process.env as Record<string, string | undefined>;
   const extra = (Constants?.expoConfig?.extra ?? {}) as {
     BACKEND_API_URL?: string;
   };
 
   const baseUrl =
-    process.env.EXPO_PUBLIC_BACKEND_API_URL ??
+    env.EXPO_PUBLIC_BACKEND_API_URL ??
     extra.BACKEND_API_URL ??
     "http://localhost:3000";
 
@@ -66,7 +95,11 @@ async function apiFetch<TResponse>(
       typeof body.error === "string"
         ? body.error
         : fallbackMessage;
-    throw new Error(message);
+    throw createApiRequestError(
+      message,
+      response.status,
+      (body as ApiErrorResponse | Record<string, unknown> | null) ?? null,
+    );
   }
 
   if (body === null) {
@@ -141,6 +174,89 @@ export async function createMessage(
   payload: CreateMessageRequest,
 ): Promise<CreateMessageResponse> {
   return apiFetch<CreateMessageResponse>(session, "/sessions/message", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchZones(
+  session: Session,
+  organizationId: string,
+): Promise<GetZonesResponse> {
+  return apiFetch<GetZonesResponse>(
+    session,
+    `/zones?organizationId=${encodeURIComponent(organizationId)}`,
+    { method: "GET" },
+  );
+}
+
+export async function postZone(
+  session: Session,
+  organizationId: string,
+  feature: ZoneFeature,
+): Promise<CreateZoneResponse> {
+  const payload: CreateZoneRequest = { organizationId, feature };
+  return apiFetch<CreateZoneResponse>(session, "/zones", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function adjustZone(
+  session: Session,
+  organizationId: string,
+  newZone: ZoneFeature,
+  overlappingZoneIds: string[],
+): Promise<AdjustZoneResponse> {
+  const payload: AdjustZoneRequest = {
+    organizationId,
+    newZone,
+    overlappingZoneIds,
+  };
+  return apiFetch<AdjustZoneResponse>(session, "/zones/adjust", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteZone(
+  session: Session,
+  organizationId: string,
+  zoneId: string,
+): Promise<DeleteZoneResponse> {
+  return apiFetch<DeleteZoneResponse>(
+    session,
+    `/zones/${encodeURIComponent(zoneId)}?organizationId=${encodeURIComponent(organizationId)}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function updateZone(
+  session: Session,
+  organizationId: string,
+  zoneId: string,
+  feature: ZoneFeature,
+): Promise<UpdateZoneResponse> {
+  const payload: UpdateZoneRequest = { organizationId, feature };
+  return apiFetch<UpdateZoneResponse>(
+    session,
+    `/zones/${encodeURIComponent(zoneId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function generateH3Grid(
+  session: Session,
+  polygon: GeoJSONPosition[],
+  resolution?: number,
+): Promise<GenerateH3GridResponse> {
+  const payload: GenerateH3GridRequest = { polygon, resolution };
+  return apiFetch<GenerateH3GridResponse>(session, "/h3/generate", {
     method: "POST",
     body: JSON.stringify(payload),
   });

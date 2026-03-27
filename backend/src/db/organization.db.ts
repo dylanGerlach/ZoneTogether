@@ -55,8 +55,42 @@ export class OrganizationService {
       .select("organization_id, user_id, role")
       .single();
 
-    if (error) throw error;
-    return data as JoinOrganizationResponse;
+    if (!error) return data as JoinOrganizationResponse;
+
+    // Fallback for DBs that do not have a unique constraint on
+    // (organization_id, user_id), which is required by ON CONFLICT.
+    if (error.code !== "42P10") throw error;
+
+    const { data: existing, error: existingError } = await this.client
+      .from("organization_members")
+      .select("organization_id, user_id, role")
+      .eq("organization_id", organizationId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (existingError) throw existingError;
+
+    if (existing) {
+      const { data: updated, error: updateError } = await this.client
+        .from("organization_members")
+        .update({ role })
+        .eq("organization_id", organizationId)
+        .eq("user_id", userId)
+        .select("organization_id, user_id, role")
+        .single();
+
+      if (updateError) throw updateError;
+      return updated as JoinOrganizationResponse;
+    }
+
+    const { data: inserted, error: insertError } = await this.client
+      .from("organization_members")
+      .insert({ organization_id: organizationId, user_id: userId, role })
+      .select("organization_id, user_id, role")
+      .single();
+
+    if (insertError) throw insertError;
+    return inserted as JoinOrganizationResponse;
   }
 
   async getOrganizationsById(userId: UUID): Promise<OrganizationMembership[]> {
