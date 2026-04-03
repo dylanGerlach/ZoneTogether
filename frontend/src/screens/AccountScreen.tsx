@@ -1,5 +1,5 @@
 import React from "react";
-import { Platform, ScrollView, StyleSheet, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, View, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -20,7 +20,8 @@ export const AccountScreen: React.FC = () => {
 
   const fullName = (user?.user_metadata as { fullName?: string })?.fullName?.trim();
   const email = user?.email ?? "guest";
-
+  const user_ID = user;
+  const profileImage = '../../assets/' + user + '.png'
   const Container = Platform.OS === "web" ? View : SafeAreaView;
   const containerProps =
     Platform.OS === "web"
@@ -44,11 +45,28 @@ export const AccountScreen: React.FC = () => {
             <Text variant="h3">Account Info</Text>
           </View>
           <View style={styles.details}>
+            {/* <View style={styles.row}> */}
+            <View style={styles.images}>
+              <View style={styles.textColumn}>
+                <Text variant="caption" color="textSecondary" style={styles.label}>
+                  Name
+                </Text>
+                <Text variant="body">{fullName || "Not provided"}</Text>
+              </View>
+              <View style={styles.imageColumn}>
+                  <Image
+                    // source = {require(profileImage)}
+                    source = {require('../../assets/guest.png')}
+                    style={styles.image}
+                  />
+            </View>
+          </View>
+            {/* </View> */}
             <View style={styles.row}>
               <Text variant="caption" color="textSecondary" style={styles.label}>
-                Name
+                User ID number
               </Text>
-              <Text variant="body">{fullName || "Not provided"}</Text>
+              <Text variant="body">12345678</Text>
             </View>
             <View style={styles.row}>
               <Text variant="caption" color="textSecondary" style={styles.label}>
@@ -128,6 +146,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     gap: spacing.xs,
+  },
+  images: {
+    flexDirection: "row", 
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.xs,
+  },
+
+  imageColumn: {
+    flex: 1,
+    marginLeft: 10,
+  },
+
+  textColumn: {
+    // flex: 1, 
+  },  
+
+  image: {
+    width: 50,
+    height: 50,
+    borderRadius: 50,
   },
   label: {
     textTransform: "uppercase",
