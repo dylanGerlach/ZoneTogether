@@ -10,6 +10,7 @@ export type RootStackParamList = {
   Home: undefined;
   Account: undefined;
   Organization: { organizationId: UUID; organizationName: string };
+  ZoneMap: { organizationId: UUID; organizationName: string };
   MessageList: { organizationId: UUID; organizationName: string };
   MessageDetail: { conversationId: UUID; title: string };
   NewMessage: { organizationId: UUID; organizationName: string };

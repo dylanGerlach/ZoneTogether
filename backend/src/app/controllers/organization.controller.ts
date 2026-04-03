@@ -100,6 +100,7 @@ export async function getAllUsersInOrganization(
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
   const { organizationId } = req.params;
+  const { search } = req.query;
   if (!isNonEmptyString(organizationId)) {
     return res.status(400).json({ error: "organizationId is required" });
   }
@@ -107,7 +108,8 @@ export async function getAllUsersInOrganization(
   try {
     const organizationService = new OrganizationService(auth.token);
     const allUsers = await organizationService.getAllUsersInOrganization(
-      organizationId
+      organizationId,
+      search as string | undefined
     );
     res.status(200).json(allUsers);
   } catch (error) {

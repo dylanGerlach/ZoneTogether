@@ -6,15 +6,16 @@ let cachedClient: SupabaseClient | null = null;
 let configurationWarningShown = false;
 
 function getSupabaseConfig() {
+  const env = process.env as Record<string, string | undefined>;
   const extra = (Constants?.expoConfig?.extra ?? {}) as {
     SUPABASE_URL?: string;
     SUPABASE_ANON_KEY?: string;
   };
 
   const supabaseUrl =
-    process.env.EXPO_PUBLIC_SUPABASE_URL ?? extra.SUPABASE_URL ?? "";
+    env.EXPO_PUBLIC_SUPABASE_URL ?? extra.SUPABASE_URL ?? "";
   const supabaseAnonKey =
-    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? extra.SUPABASE_ANON_KEY ?? "";
+    env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? extra.SUPABASE_ANON_KEY ?? "";
 
   return { supabaseUrl, supabaseAnonKey };
 }

@@ -14,6 +14,7 @@ import {
   HomeScreen,
   AccountScreen,
   OrganizationScreen,
+  ZoneMapScreen,
   MessageListScreen,
   MessageDetailScreen,
   NewMessageScreen,
@@ -48,6 +49,7 @@ const AppStackNavigator = () => (
     <AppStack.Screen name="Home" component={HomeScreen} />
     <AppStack.Screen name="Account" component={AccountScreen} />
     <AppStack.Screen name="Organization" component={OrganizationScreen} />
+    <AppStack.Screen name="ZoneMap" component={ZoneMapScreen} />
     <AppStack.Screen name="MessageList" component={MessageListScreen} />
     <AppStack.Screen name="MessageDetail" component={MessageDetailScreen} />
     <AppStack.Screen name="NewMessage" component={NewMessageScreen} />
