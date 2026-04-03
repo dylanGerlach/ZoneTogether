@@ -87,6 +87,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 52,
+    width: 200,
     overflow: 'hidden',
   },
   primary: {
