@@ -56,7 +56,7 @@ export const AccountScreen: React.FC = () => {
               <View style={styles.imageColumn}>
                   <Image
                     // source = {require(profileImage)}
-                    source = {require('../../assets/guest.png')}
+                    source = {require('../../assets/Guest_Profile.jpg')}
                     style={styles.image}
                   />
             </View>
