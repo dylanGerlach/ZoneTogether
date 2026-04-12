@@ -78,6 +78,14 @@ export interface OrganizationUser {
   profile_full_name?: string;
 }
 
+export interface OrganizationInvite {
+  id: UUID;
+  organization_id: UUID;
+  email: string;
+  inviter: UUID;
+  role: MembershipRole;
+  created_at?: ISODateString;
+}
 export type GetOrganizationUsersResponse = OrganizationUser[];
 
 /**
