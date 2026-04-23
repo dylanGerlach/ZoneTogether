@@ -9,6 +9,7 @@ import type {
   JoinOrganizationRequest,
   JoinOrganizationResponse,
   MembershipRole,
+  OrganizationInvite,
   OrganizationUser,
   UUID,
 } from "../../contracts/backend-api.types.js";
@@ -206,4 +207,66 @@ export async function inviteOrganizationUser(
     console.error("Failed to invite organization user:", error);
     return res.status(500).json({ error: "Failed to invite user to organization" });
   }
+}
+
+export async function createInvite(
+  req: Request<{ organizationId: UUID }, {}, { email: string, role: MembershipRole }>,
+  res: Response<void | ApiErrorResponse>
+) {
+  const auth = getAuthContext(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const { organizationId } = req.params;
+  const { email, role } = req.body;
+  if (!isNonEmptyString(email) || !isNonEmptyString(role)) {
+    return res.status(400).json({ error: "email and role are required" });
+  }
+
+  try {
+    const organizationService = new OrganizationService(auth.token);
+    await organizationService.createInvite(organizationId, email, auth.userId, role);
+    res.status(200).json();
+  } catch (error) {
+    console.error("Failed to create invite:", error);
+    res.status(500).json({ error: "Failed to create invite" });
+  }
+}
+
+export async function fetchInvites(
+  req: Request<{ userId: UUID }>,
+  res: Response<OrganizationInvite[] | ApiErrorResponse>
+) {
+  const auth = getAuthContext(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const organizationService = new OrganizationService(auth.token);
+    const invites = await organizationService.fetchInvites(auth.userId);
+    res.status(200).json(invites);
+  } catch (error) {
+    console.error("Failed to fetch invites:", error);
+    res.status(500).json({ error: "Failed to fetch invites" });
+  }
+}
+
+export async function handleInviteAction(
+  req: Request<{ inviteId: UUID }, void | ApiErrorResponse, { action: "accept" | "reject", organizationId: UUID, role: MembershipRole }>,
+  res: Response<void | ApiErrorResponse>
+) {
+  const auth = getAuthContext(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const { inviteId } = req.params;
+  const { action, organizationId, role} = req.body;
+  if (!isNonEmptyString(inviteId) || !isNonEmptyString(action)) {
+    return res.status(400).json({ error: "inviteId and action are required" });
+  }
+  const organizationService = new OrganizationService(auth.token);
+  if (action === "accept") {
+    await organizationService.joinOrganization(organizationId, auth.userId, role);
+    await organizationService.deleteInvite(inviteId);
+  } else {
+    await organizationService.deleteInvite(inviteId);
+  }
+  res.status(200).json();
 }

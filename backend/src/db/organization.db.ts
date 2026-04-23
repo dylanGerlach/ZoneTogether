@@ -7,6 +7,7 @@ import type {
   MembershipRole,
   OrganizationUser,
   OrganizationMembership,
+  OrganizationInvite,
   UUID,
 } from "../contracts/backend-api.types.js";
 dotenv.config();
@@ -185,5 +186,35 @@ export class OrganizationService {
     role: MembershipRole,
   ): Promise<JoinOrganizationResponse> {
     return this.joinOrganization(organizationId, userId, role);
+  }
+
+  async createInvite(organizationId: UUID, email: string, inviter: UUID, role: MembershipRole): Promise<void> {
+    const { data, error } = await this.client
+      .from("organization_invites")
+      .insert({ organization_id: organizationId, email: email, inviter: inviter, role: role})
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async fetchInvites(userId: UUID): Promise<OrganizationInvite[]> {
+    const { data: profile } = await this.client.from("profiles").select("email").eq("id", userId).single();
+    if (!profile) throw new Error("Profile not found");
+
+    const { data, error } = await this.client
+      .from("organization_invites")
+      .select("id, organization_id, email, inviter, role, created_at, organization(name, description), profiles(id, full_name)")
+      .eq("email", profile.email);
+    if (error) throw error;
+    return data as OrganizationInvite[];
+  }
+
+  async deleteInvite(inviteId: UUID): Promise<void> {
+    const { error } = await this.client
+      .from("organization_invites")
+      .delete()
+      .eq("id", inviteId);
+    if (error) throw error;
   }
 }

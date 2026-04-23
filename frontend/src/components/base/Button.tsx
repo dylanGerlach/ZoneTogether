@@ -76,7 +76,8 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 50,
+    minHeight: 52,
+    overflow: 'hidden',
   },
   primary: {
     backgroundColor: colors.actionPrimary,
