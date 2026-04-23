@@ -1,11 +1,11 @@
 import React from "react";
-import { Platform, ScrollView, StyleSheet, View, Image } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Image, StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
-import { Button, Card, Text } from "../components";
+import { Button, Card, ScreenScaffold, Text } from "../components";
 import { useAuthContext } from "../context/AuthContext";
+import { useCompactLayout } from "../hooks/useCompactLayout";
 import { colors, spacing } from "../theme";
 import { RootStackParamList } from "../types";
 
@@ -17,33 +17,28 @@ type AccountScreenNavigationProp = NativeStackNavigationProp<
 export const AccountScreen: React.FC = () => {
   const { user, signOut } = useAuthContext();
   const navigation = useNavigation<AccountScreenNavigationProp>();
+  const { cardPadding } = useCompactLayout();
 
   const fullName = (user?.user_metadata as { fullName?: string })?.fullName?.trim();
   const email = user?.email ?? "guest";
-  const user_ID = user;
-  const profileImage = '../../assets/' + user + '.png'
-  const Container = Platform.OS === "web" ? View : SafeAreaView;
-  const containerProps =
-    Platform.OS === "web"
-      ? { style: styles.container }
-      : { style: styles.container, edges: ["top", "bottom"] as const };
 
   return (
-    <Container {...containerProps}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.heroCard}>
-          <Text variant="h1" style={styles.title}>
-            Account
-          </Text>
-          <Text variant="body" color="textSecondary" style={styles.subtitle}>
-            Basic account details for your current session.
-          </Text>
-        </View>
-
-        <Card style={styles.card}>
-          <View style={styles.sectionHeader}>
-            <Text variant="h3">Account Info</Text>
-          </View>
+    <ScreenScaffold
+      title="Account"
+      subtitle="Basic account details for your current session."
+      leftAction={{
+        iconName: "arrow-left",
+        accessibilityLabel: "Back to home",
+        onPress: () => navigation.navigate("Home"),
+      }}
+      rightActions={[
+        {
+          iconName: "cog-outline",
+          accessibilityLabel: "Account settings",
+        },
+      ]}
+    >
+        <Card style={[styles.card, { padding: cardPadding }]}>
           <View style={styles.details}>
             {/* <View style={styles.row}> */}
             <View style={styles.images}>
@@ -81,46 +76,18 @@ export const AccountScreen: React.FC = () => {
                 Back to Home
               </Text>
             </Button>
-            <Button variant="secondary" onPress={signOut}>
+            <Button variant="primary" onPress={signOut}>
               <Text variant="label" color="white">
                 Sign Out
               </Text>
             </Button>
           </View>
         </Card>
-      </ScrollView>
-    </Container>
+    </ScreenScaffold>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    padding: spacing.lg,
-    gap: spacing.lg,
-    paddingBottom: spacing.xxl,
-  },
-  heroCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 20,
-    padding: spacing.lg,
-    backgroundColor: colors.background,
-    shadowColor: colors.gray900,
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3,
-  },
-  title: {
-    fontSize: 30,
-  },
-  subtitle: {
-    marginTop: spacing.xs,
-  },
   card: {
     padding: spacing.lg,
     borderRadius: 16,
@@ -129,12 +96,6 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
     elevation: 2,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing.md,
   },
   details: {
     gap: spacing.sm,

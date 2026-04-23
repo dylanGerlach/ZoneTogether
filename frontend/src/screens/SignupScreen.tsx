@@ -212,10 +212,19 @@ export const SignupScreen: React.FC = () => {
                   error={errors.password}
                   secureTextEntry={!showPassword}
                   rightIcon={
-                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                      <Text variant="caption" color="textSecondary">
-                        {showPassword ? "Hide" : "Show"}
-                      </Text>
+                    <TouchableOpacity
+                      onPress={() => setShowPassword((prev) => !prev)}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        showPassword ? "Hide password" : "Show password"
+                      }
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <MaterialCommunityIcons
+                        name={showPassword ? "eye-off-outline" : "eye-outline"}
+                        size={20}
+                        color={colors.textSecondary}
+                      />
                     </TouchableOpacity>
                   }
                 />
@@ -226,10 +235,25 @@ export const SignupScreen: React.FC = () => {
                   error={errors.confirmPassword}
                   secureTextEntry={!showConfirmPassword}
                   rightIcon={
-                    <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-                      <Text variant="caption" color="textSecondary">
-                        {showConfirmPassword ? "Hide" : "Show"}
-                      </Text>
+                    <TouchableOpacity
+                      onPress={() => setShowConfirmPassword((prev) => !prev)}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        showConfirmPassword
+                          ? "Hide password"
+                          : "Show password"
+                      }
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <MaterialCommunityIcons
+                        name={
+                          showConfirmPassword
+                            ? "eye-off-outline"
+                            : "eye-outline"
+                        }
+                        size={20}
+                        color={colors.textSecondary}
+                      />
                     </TouchableOpacity>
                   }
                 />

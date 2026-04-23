@@ -13,6 +13,9 @@ type VerticalSliderControlProps = {
   height?: number;
 };
 
+// See SliderControl.tsx for context on VALUE_SHIFT.
+const VALUE_SHIFT = 1;
+
 export const VerticalSliderControl: React.FC<VerticalSliderControlProps> = ({
   value,
   minimumValue = 0,
@@ -21,15 +24,19 @@ export const VerticalSliderControl: React.FC<VerticalSliderControlProps> = ({
   onValueChange,
   height = 180,
 }) => {
+  const handleValueChange = (nextValue: number) => {
+    onValueChange(nextValue - VALUE_SHIFT);
+  };
+
   return (
     <View style={[styles.trackContainer, { height }]}>
       <Slider
         style={[styles.slider, { width: height }]}
-        value={value}
-        minimumValue={minimumValue}
-        maximumValue={maximumValue}
+        value={value + VALUE_SHIFT}
+        minimumValue={minimumValue + VALUE_SHIFT}
+        maximumValue={maximumValue + VALUE_SHIFT}
         step={step}
-        onValueChange={onValueChange}
+        onValueChange={handleValueChange}
         minimumTrackTintColor={colors.primary}
         maximumTrackTintColor={colors.gray300}
         thumbTintColor={colors.primary}

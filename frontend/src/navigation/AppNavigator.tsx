@@ -8,14 +8,19 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import { useAuthContext } from "../context/AuthContext";
+import { OrganizationProvider } from "../context/OrganizationContext";
+import { ProjectProvider } from "../context/ProjectContext";
+import { MessageProvider } from "../context/MessageContext";
 import {
   LoginScreen,
   SignupScreen,
   HomeScreen,
   AccountScreen,
   OrganizationScreen,
+  ProjectListScreen,
+  ProjectDetailScreen,
+  ProjectMapScreen,
   ZoneMapScreen,
-  MessageListScreen,
   MessageDetailScreen,
   NewMessageScreen,
 } from "../screens";
@@ -49,8 +54,10 @@ const AppStackNavigator = () => (
     <AppStack.Screen name="Home" component={HomeScreen} />
     <AppStack.Screen name="Account" component={AccountScreen} />
     <AppStack.Screen name="Organization" component={OrganizationScreen} />
+    <AppStack.Screen name="ProjectList" component={ProjectListScreen} />
+    <AppStack.Screen name="ProjectDetail" component={ProjectDetailScreen} />
+    <AppStack.Screen name="ProjectMap" component={ProjectMapScreen} />
     <AppStack.Screen name="ZoneMap" component={ZoneMapScreen} />
-    <AppStack.Screen name="MessageList" component={MessageListScreen} />
     <AppStack.Screen name="MessageDetail" component={MessageDetailScreen} />
     <AppStack.Screen name="NewMessage" component={NewMessageScreen} />
   </AppStack.Navigator>
@@ -69,7 +76,17 @@ export const AppNavigator: React.FC = () => {
 
   return (
     <NavigationContainer>
-      {user ? <AppStackNavigator /> : <AuthStackNavigator />}
+      {user ? (
+        <OrganizationProvider>
+          <ProjectProvider>
+            <MessageProvider>
+              <AppStackNavigator />
+            </MessageProvider>
+          </ProjectProvider>
+        </OrganizationProvider>
+      ) : (
+        <AuthStackNavigator />
+      )}
     </NavigationContainer>
   );
 };

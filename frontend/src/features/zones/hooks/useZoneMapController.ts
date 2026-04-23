@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Platform } from "react-native";
+import { Alert } from "react-native";
 
 import {
   adjustZone,
@@ -75,7 +75,7 @@ export type UseZoneMapControllerResult = {
   loadZones: () => Promise<void>;
   handleSaveZone: () => Promise<void>;
   handleRedoZone: () => Promise<void>;
-  handleDeleteZone: (zoneId: string, zoneLabel: string) => Promise<void>;
+  handleDeleteZone: (zoneId: string) => Promise<void>;
   dismissOverlap: () => void;
 };
 
@@ -418,44 +418,14 @@ export function useZoneMapController({
   }, [adjusting, clearPath, getOverlapIds, loadZones, organizationId, overlapPayload, pendingSaveZoneId, session]);
 
   const handleDeleteZone = useCallback(
-    async (zoneId: string, zoneLabel: string) => {
+    async (zoneId: string) => {
       if (!session) return;
-
-      if (Platform.OS === "web") {
-        const shouldDelete =
-          typeof window !== "undefined" ? window.confirm(`Delete "${zoneLabel}"?`) : true;
-        if (!shouldDelete) return;
-
-        try {
-          await deleteZone(session, organizationId, zoneId);
-          await loadZones();
-        } catch (error) {
-          Alert.alert("Delete failed", getErrorMessage(error));
-        }
-        return;
+      try {
+        await deleteZone(session, organizationId, zoneId);
+        await loadZones();
+      } catch (error) {
+        Alert.alert("Delete failed", getErrorMessage(error));
       }
-
-      await new Promise<void>((resolve) => {
-        Alert.alert("Delete zone", `Delete "${zoneLabel}"?`, [
-          { text: "Cancel", style: "cancel", onPress: () => resolve() },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: () => {
-              void (async () => {
-                try {
-                  await deleteZone(session, organizationId, zoneId);
-                  await loadZones();
-                } catch (error) {
-                  Alert.alert("Delete failed", getErrorMessage(error));
-                } finally {
-                  resolve();
-                }
-              })();
-            },
-          },
-        ]);
-      });
     },
     [loadZones, organizationId, session],
   );

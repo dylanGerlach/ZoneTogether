@@ -22,25 +22,60 @@ export function useAuth(): UseAuthReturn {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+    console.log("[auth] bootstrap starting");
+    // Prevent an indefinite splash spinner if auth bootstrap hangs.
+    const loadingTimeout = setTimeout(() => {
+      if (isMounted) {
+        console.warn("Auth bootstrap timed out; continuing without session.");
+        setLoading(false);
+      }
+    }, 5000);
+
     const client = getSupabaseClient();
     if (!client) {
+      console.warn("[auth] bootstrap aborted: no supabase client");
       setLoading(false);
+      clearTimeout(loadingTimeout);
       return;
     }
-    client.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    client.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (!isMounted) return;
+        console.log("[auth] getSession resolved", {
+          hasSession: Boolean(session),
+          userId: session?.user?.id ?? null,
+        });
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error("[auth] getSession failed", error);
+        if (!isMounted) return;
+        setLoading(false);
+      })
+      .finally(() => {
+        clearTimeout(loadingTimeout);
+      });
 
     // Listen for auth changes
     const sub = client.auth.onAuthStateChange((_event, session) => {
+      if (!isMounted) return;
+      console.log("[auth] onAuthStateChange", {
+        event: _event,
+        hasSession: Boolean(session),
+        userId: session?.user?.id ?? null,
+      });
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
     return () => {
+      isMounted = false;
+      clearTimeout(loadingTimeout);
       sub.data.subscription.unsubscribe();
     };
   }, []);

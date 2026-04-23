@@ -6,6 +6,7 @@ import organizationRoutes from "./app/routes/organization.route.js";
 import messagingRoutes from "./app/routes/messaging.route.js";
 import zonesRoutes from "./app/routes/zones.route.js";
 import h3Routes from "./app/routes/h3.route.js";
+import projectsRoutes from "./app/routes/projects.route.js";
 export const app = express();
 app.use(cors());
 dotenv.config();
@@ -17,6 +18,7 @@ app.use("/organization", organizationRoutes);
 app.use("/sessions", messagingRoutes);
 app.use("/zones", zonesRoutes);
 app.use("/h3", h3Routes);
+app.use("/projects", projectsRoutes);
 
 app.get("/health", (req: any, res: any) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });

@@ -27,6 +27,7 @@ export async function signUp(
     phoneNumber?: string;
   }
 ): Promise<AuthResponse> {
+  console.log("[auth] signUp requested", { email });
   const client = getSupabaseClient();
   if (!client)
     return {
@@ -41,6 +42,16 @@ export async function signUp(
       data: metadata || {},
     },
   });
+  if (error) {
+    console.error("[auth] signUp failed", {
+      email,
+      message: error.message,
+      status: error.status,
+      name: error.name,
+    });
+  } else {
+    console.log("[auth] signUp succeeded", { email, userId: data.user?.id ?? null });
+  }
 
   return {
     user: data.user,
@@ -56,6 +67,7 @@ export async function signIn(
   email: string,
   password: string
 ): Promise<AuthResponse> {
+  console.log("[auth] signIn requested", { email });
   const client = getSupabaseClient();
   if (!client)
     return {
@@ -67,6 +79,16 @@ export async function signIn(
     email,
     password,
   });
+  if (error) {
+    console.error("[auth] signIn failed", {
+      email,
+      message: error.message,
+      status: error.status,
+      name: error.name,
+    });
+  } else {
+    console.log("[auth] signIn succeeded", { email, userId: data.user?.id ?? null });
+  }
 
   return {
     user: data.user,

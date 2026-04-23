@@ -3,8 +3,8 @@
  */
 
 import React from 'react';
-import { TextInput, TextInputProps, View, StyleSheet, TouchableOpacity } from 'react-native';
-import { colors, spacing, typography } from '../../theme';
+import { TextInput, TextInputProps, View, StyleSheet } from 'react-native';
+import { colors, radii, spacing, typography } from '../../theme';
 import { Text } from './Text';
 
 interface InputProps extends TextInputProps {
@@ -65,20 +65,15 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   input: {
-    backgroundColor: '#f7f8ff',
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: colors.gray200,
-    borderRadius: 16,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingVertical: spacing.smd,
+    paddingHorizontal: spacing.md,
     fontSize: typography.fontSize.md,
     color: colors.textPrimary,
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.04,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
-    minHeight: 54,
+    minHeight: 50,
   },
   inputError: {
     borderColor: colors.error,
@@ -89,8 +84,10 @@ const styles = StyleSheet.create({
   rightIcon: {
     position: 'absolute',
     right: spacing.md,
-    top: '50%',
-    transform: [{ translateY: -12 }],
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   helperText: {
     marginTop: spacing.xs,

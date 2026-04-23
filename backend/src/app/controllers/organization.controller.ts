@@ -10,6 +10,7 @@ import type {
   JoinOrganizationResponse,
   MembershipRole,
   OrganizationInvite,
+  OrganizationUser,
   UUID,
 } from "../../contracts/backend-api.types.js";
 
@@ -20,6 +21,14 @@ function getAuthContext(req: Request): { token: string; userId: UUID } | null {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function isMembershipRole(value: unknown): value is MembershipRole {
+  return value === "owner" || value === "admin" || value === "member";
+}
+
+function isAdminRole(role: MembershipRole | null): boolean {
+  return role === "owner" || role === "admin";
 }
 
 export async function createOrganization(
@@ -117,6 +126,86 @@ export async function getAllUsersInOrganization(
   } catch (error) {
     console.error("Failed to fetch users in organization:", error);
     res.status(500).json({ error: "Failed to fetch all users in organization" });
+  }
+}
+
+export async function getOrganizationInviteCandidates(
+  req: Request<{ organizationId: UUID }, { users: OrganizationUser[] } | ApiErrorResponse>,
+  res: Response<{ users: OrganizationUser[] } | ApiErrorResponse>,
+) {
+  const auth = getAuthContext(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const { organizationId } = req.params;
+  const { search } = req.query;
+  if (!isNonEmptyString(organizationId)) {
+    return res.status(400).json({ error: "organizationId is required" });
+  }
+
+  try {
+    const organizationService = new OrganizationService(auth.token);
+    const requesterRole = await organizationService.getOrganizationRole(organizationId, auth.userId);
+    if (!requesterRole) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const users = await organizationService.listInviteCandidates(
+      organizationId,
+      typeof search === "string" ? search : undefined,
+    );
+    return res.status(200).json({ users });
+  } catch (error) {
+    console.error("Failed to fetch organization invite candidates:", error);
+    return res.status(500).json({ error: "Failed to fetch organization invite candidates" });
+  }
+}
+
+export async function inviteOrganizationUser(
+  req: Request<
+    { organizationId: UUID },
+    JoinOrganizationResponse | ApiErrorResponse,
+    { userId?: UUID; role?: MembershipRole }
+  >,
+  res: Response<JoinOrganizationResponse | ApiErrorResponse>,
+) {
+  const auth = getAuthContext(req);
+  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+
+  const { organizationId } = req.params;
+  const { userId, role } = req.body ?? {};
+  if (!isNonEmptyString(organizationId)) {
+    return res.status(400).json({ error: "organizationId is required" });
+  }
+  if (!isNonEmptyString(userId)) {
+    return res.status(400).json({ error: "userId is required" });
+  }
+  if (role !== undefined && !isMembershipRole(role)) {
+    return res.status(400).json({ error: "role must be owner, admin, or member" });
+  }
+  if (role === "owner") {
+    return res.status(400).json({ error: "Invites cannot assign owner role" });
+  }
+
+  const targetRole: MembershipRole = role ?? "member";
+
+  try {
+    const organizationService = new OrganizationService(auth.token);
+    const requesterRole = await organizationService.getOrganizationRole(organizationId, auth.userId);
+    if (!requesterRole) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    if (targetRole === "admin" && !isAdminRole(requesterRole)) {
+      return res.status(403).json({ error: "Only owners/admins can assign admin role" });
+    }
+
+    const member = await organizationService.inviteUserToOrganization(
+      organizationId,
+      userId,
+      targetRole,
+    );
+    return res.status(200).json(member);
+  } catch (error) {
+    console.error("Failed to invite organization user:", error);
+    return res.status(500).json({ error: "Failed to invite user to organization" });
   }
 }
 

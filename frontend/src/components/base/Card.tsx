@@ -3,16 +3,30 @@
  */
 
 import React from 'react';
-import { View, ViewProps, StyleSheet } from 'react-native';
-import { colors, spacing } from '../../theme';
+import { View, ViewProps, StyleSheet, useWindowDimensions } from 'react-native';
+import { colors, elevation, radii, spacing } from '../../theme';
 
 interface CardProps extends ViewProps {
   children: React.ReactNode;
+  elevated?: boolean;
 }
 
-export const Card: React.FC<CardProps> = ({ children, style, ...props }) => {
+const COMPACT_BREAKPOINT = 768;
+
+export const Card: React.FC<CardProps> = ({ children, style, elevated = true, ...props }) => {
+  const { width } = useWindowDimensions();
+  const isCompact = width < COMPACT_BREAKPOINT;
+
   return (
-    <View style={[styles.card, style]} {...props}>
+    <View
+      style={[
+        styles.card,
+        isCompact && styles.cardCompact,
+        elevated ? styles.cardElevated : null,
+        style,
+      ]}
+      {...props}
+    >
       {children}
     </View>
   );
@@ -20,11 +34,18 @@ export const Card: React.FC<CardProps> = ({ children, style, ...props }) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.white,
-    borderRadius: 8,
+    backgroundColor: colors.surfacePrimary,
+    borderRadius: radii.lg,
     padding: spacing.md,
-    marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  cardCompact: {
+    padding: spacing.sm,
+    borderRadius: radii.md,
+  },
+  cardElevated: {
+    shadowColor: colors.black,
+    ...elevation.low,
   },
 });

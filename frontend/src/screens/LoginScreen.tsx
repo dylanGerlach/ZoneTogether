@@ -67,6 +67,10 @@ export const LoginScreen: React.FC = () => {
       await signIn(email, password);
       Alert.alert("Success", "Welcome back!");
     } catch (error) {
+      console.error("[login] handleLogin failed", {
+        email,
+        message: error instanceof Error ? error.message : String(error),
+      });
       const message =
         error instanceof Error ? error.message : "Login failed. Please try again.";
       setFormError(message);
@@ -163,10 +167,19 @@ export const LoginScreen: React.FC = () => {
                 error={errors.password}
                 secureTextEntry={!showPassword}
                 rightIcon={
-                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                    <Text variant="caption" color="textSecondary">
-                      {showPassword ? "Hide" : "Show"}
-                    </Text>
+                  <TouchableOpacity
+                    onPress={() => setShowPassword((prev) => !prev)}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <MaterialCommunityIcons
+                      name={showPassword ? "eye-off-outline" : "eye-outline"}
+                      size={20}
+                      color={colors.textSecondary}
+                    />
                   </TouchableOpacity>
                 }
               />
