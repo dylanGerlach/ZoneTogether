@@ -4,13 +4,22 @@
  */
 
 export const typography = {
+  fontFamily: {
+    regular: "System",
+    medium: "System",
+    semibold: "System",
+    bold: "System",
+  },
   fontSize: {
+    xxs: 11,
     xs: 12,
     sm: 14,
     md: 16,
+    mlg: 18,
     lg: 20,
     xl: 24,
     xxl: 32,
+    xxxl: 40,
   },
   
   fontWeight: {
@@ -22,6 +31,7 @@ export const typography = {
   
   lineHeight: {
     tight: 1.2,
+    compact: 1.35,
     normal: 1.5,
     relaxed: 1.75,
   },

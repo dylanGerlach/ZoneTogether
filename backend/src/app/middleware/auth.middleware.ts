@@ -23,8 +23,10 @@ export async function requireAuth(
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  if (process.env.NODE_ENV === "test" && token === "test-token") {
-    req.user = { id: "test-user-id" } as any;
+  if (process.env.NODE_ENV === "test" && token.startsWith("test-token")) {
+    const tokenParts = token.split(":");
+    const testUserId = tokenParts[1]?.trim() || "test-user-id";
+    req.user = { id: testUserId } as any;
     req.token = token;
     return next();
   }

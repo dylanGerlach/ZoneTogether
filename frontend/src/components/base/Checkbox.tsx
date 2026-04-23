@@ -5,7 +5,7 @@
 import React from 'react';
 import { TouchableOpacity, View, StyleSheet } from 'react-native';
 import { Text } from './Text';
-import { colors, spacing } from '../../theme';
+import { colors, radii, spacing } from '../../theme';
 
 interface CheckboxProps {
   value: boolean;
@@ -29,6 +29,8 @@ export const Checkbox: React.FC<CheckboxProps> = ({
       }}
       activeOpacity={0.7}
       disabled={disabled}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: value, disabled }}
     >
       <View style={[styles.checkbox, value && styles.checked]}>
         {value && (
@@ -55,11 +57,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   checkbox: {
-    width: 24,
-    height: 24,
-    borderWidth: 2,
+    width: 22,
+    height: 22,
+    borderWidth: 1.5,
     borderColor: colors.border,
-    borderRadius: 4,
+    borderRadius: radii.xs,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.sm,

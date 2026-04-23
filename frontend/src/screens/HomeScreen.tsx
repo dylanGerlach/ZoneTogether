@@ -2,22 +2,24 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-import { Button, Card, Input, Text } from "../components";
+import { Button, Card, Input, ScreenScaffold, Text } from "../components";
 import { useAuthContext } from "../context/AuthContext";
-import { createOrganization, fetchOrganizations } from "../utils/backendApi";
+import { useOrganizationContext } from "../context/OrganizationContext";
+import { useProjectContext } from "../context/ProjectContext";
+import { useCompactLayout } from "../hooks/useCompactLayout";
+import { createOrganization } from "../utils/backendApi";
 import { colors, spacing } from "../theme";
-import { OrganizationMembership, RootStackParamList } from "../types";
+import { RootStackParamList } from "../types";
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -27,10 +29,18 @@ type HomeScreenNavigationProp = NativeStackNavigationProp<
 export const HomeScreen: React.FC = () => {
   const { user, session } = useAuthContext();
   const navigation = useNavigation<HomeScreenNavigationProp>();
+  const { isCompact, cardPadding } = useCompactLayout();
 
-  const [organizations, setOrganizations] = useState<OrganizationMembership[]>([]);
-  const [loadingOrganizations, setLoadingOrganizations] = useState(true);
-  const [organizationsError, setOrganizationsError] = useState<string | null>(null);
+  const {
+    organizations,
+    organizationsLoading,
+    organizationsError,
+    loadOrganizations,
+    loadOrganizationUsers,
+    organizationUsersByOrg,
+  } = useOrganizationContext();
+  const { loadProjects, projectsByOrg } = useProjectContext();
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newOrganizationName, setNewOrganizationName] = useState("");
   const [newOrganizationDescription, setNewOrganizationDescription] = useState("");
@@ -38,6 +48,7 @@ export const HomeScreen: React.FC = () => {
     null
   );
   const [creatingOrganization, setCreatingOrganization] = useState(false);
+  const [projectsLoading, setProjectsLoading] = useState(true);
 
   const fullName = (user?.user_metadata as { fullName?: string })?.fullName;
 
@@ -46,33 +57,61 @@ export const HomeScreen: React.FC = () => {
     return fullName.trim().split(" ")[0] ?? "there";
   }, [fullName]);
 
-  const organizationCountLabel = useMemo(() => {
-    const count = organizations.length;
-    return count === 1 ? "1 organization" : `${count} organizations`;
-  }, [organizations.length]);
-
-  const loadOrganizations = useCallback(async () => {
-    if (!session) return;
-
-    setLoadingOrganizations(true);
-    setOrganizationsError(null);
-    try {
-      const response = await fetchOrganizations(session);
-      setOrganizations(response.organizations);
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to load organizations right now.";
-      setOrganizationsError(message);
-    } finally {
-      setLoadingOrganizations(false);
-    }
-  }, [session]);
+  const refreshOrganizations = useCallback(async () => {
+    if (!session) return [];
+    return loadOrganizations(session);
+  }, [loadOrganizations, session]);
 
   useEffect(() => {
-    void loadOrganizations();
-  }, [loadOrganizations]);
+    void refreshOrganizations();
+  }, [refreshOrganizations]);
+
+  useEffect(() => {
+    if (!session) return;
+    if (organizations.length === 0) {
+      setProjectsLoading(false);
+      return;
+    }
+    setProjectsLoading(true);
+    let cancelled = false;
+    void Promise.allSettled(
+      organizations.map((membership) =>
+        loadProjects(session, membership.organization_id),
+      ),
+    ).then(() => {
+      if (!cancelled) setProjectsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadProjects, organizations, session]);
+
+  useEffect(() => {
+    if (!session) return;
+    if (organizations.length === 0) return;
+    void Promise.allSettled(
+      organizations.map((membership) =>
+        loadOrganizationUsers(session, membership.organization_id),
+      ),
+    );
+  }, [loadOrganizationUsers, organizations, session]);
+
+  const organizationIds = useMemo(
+    () => new Set(organizations.map((membership) => membership.organization_id)),
+    [organizations],
+  );
+
+  const projectCount = useMemo(() => {
+    let total = 0;
+    for (const orgId of organizationIds) {
+      total += projectsByOrg[orgId]?.length ?? 0;
+    }
+    return total;
+  }, [organizationIds, projectsByOrg]);
+
+  const organizationCount = organizations.length;
+
+  const workspaceStatsLoading = organizationsLoading || projectsLoading;
 
   const handleCreateOrganization = async () => {
     if (!session) return;
@@ -94,7 +133,7 @@ export const HomeScreen: React.FC = () => {
       setNewOrganizationName("");
       setNewOrganizationDescription("");
       setIsCreateModalOpen(false);
-      await loadOrganizations();
+      await refreshOrganizations();
     } catch (error) {
       const message =
         error instanceof Error
@@ -117,57 +156,71 @@ export const HomeScreen: React.FC = () => {
     setIsCreateModalOpen(false);
   };
 
-  const Container = Platform.OS === "web" ? View : SafeAreaView;
-  const containerProps =
-    Platform.OS === "web"
-      ? { style: styles.container }
-      : { style: styles.container, edges: ["top", "bottom"] as const };
-
   return (
-    <Container {...containerProps}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.heroCard}>
-          <View style={styles.heroTopRow}>
-            <View style={styles.heroCopy}>
-              <Text variant="h1" style={styles.title}>
-                Welcome back, {firstName}
+    <ScreenScaffold
+      title="Your Workspace"
+      subtitle="Overview"
+      kicker={`WELCOME BACK, ${firstName.toUpperCase()}`}
+      leftAction={{
+        iconName: "menu",
+        accessibilityLabel: "Open menu",
+      }}
+      rightActions={[
+        {
+          iconName: "cog-outline",
+          accessibilityLabel: "Open account",
+          onPress: () => navigation.navigate("Account"),
+        },
+      ]}
+    >
+        <View
+          style={[
+            styles.heroCard,
+            { padding: cardPadding, gap: isCompact ? spacing.md : spacing.lg },
+          ]}
+        >
+          <View style={styles.statsRow}>
+            <View
+              style={[
+                styles.statCard,
+                styles.statPrimary,
+                isCompact && styles.statCardCompact,
+              ]}
+            >
+              <Text variant="h1" color="white" style={styles.statValue}>
+                {workspaceStatsLoading ? "..." : organizationCount}
               </Text>
-              <Text variant="body" color="textSecondary" style={styles.subtitle}>
-                Create a new organization or open one to continue.
+              <Text variant="caption" color="white">
+                Organizations
+              </Text>
+            </View>
+            <View
+              style={[styles.statCard, isCompact && styles.statCardCompact]}
+            >
+              <Text variant="h1" style={styles.statValue}>
+                {workspaceStatsLoading ? "..." : projectCount}
+              </Text>
+              <Text variant="caption" color="textSecondary">
+                Projects
               </Text>
             </View>
           </View>
-
-          <View style={styles.heroActions}>
-            <Button variant="primary" onPress={openCreateModal} style={styles.primaryAction}>
-              <Text variant="label" color="white">
-                + New Organization
-              </Text>
-            </Button>
-            <Button
-              variant="outline"
-              onPress={() => navigation.navigate("Account")}
-              style={styles.secondaryAction}
-            >
-              <Text variant="label" color="primary">
-                Account
-              </Text>
-            </Button>
-          </View>
         </View>
 
-        <Card style={styles.card}>
+        <Card style={[styles.card, { padding: cardPadding }]}>
           <View style={styles.sectionHeader}>
             <Text variant="h3">Organizations</Text>
-            <Text variant="caption" color="textSecondary">
-              {organizationCountLabel}
-            </Text>
+            <TouchableOpacity onPress={openCreateModal}>
+              <View style={styles.newAction}>
+                <MaterialCommunityIcons name="plus" size={14} color={colors.primary} />
+                <Text variant="caption" color="primary" style={styles.sectionHeaderAction}>
+                  New
+                </Text>
+              </View>
+            </TouchableOpacity>
           </View>
 
-          {loadingOrganizations ? (
+          {organizationsLoading ? (
             <View style={styles.loadingState}>
               <ActivityIndicator size="small" color={colors.primary} />
               <Text variant="body" color="textSecondary" style={styles.loadingText}>
@@ -197,15 +250,29 @@ export const HomeScreen: React.FC = () => {
                 return (
                   <TouchableOpacity
                     key={membership.organization_id}
-                    style={styles.organizationItem}
+                    style={[
+                      styles.organizationItem,
+                      isCompact && styles.organizationItemCompact,
+                    ]}
                     activeOpacity={0.8}
                     onPress={() =>
                       navigation.navigate("Organization", {
                         organizationId: membership.organization_id,
                         organizationName: orgName,
+                        organizationRole: membership.role,
                       })
                     }
                   >
+                    <View style={styles.logoBlock}>
+                      <Text variant="label" color="primary">
+                        {orgName
+                          .split(" ")
+                          .map((word) => word.charAt(0))
+                          .join("")
+                          .slice(0, 2)
+                          .toUpperCase()}
+                      </Text>
+                    </View>
                     <View style={styles.organizationItemBody}>
                       <Text variant="body" style={styles.organizationName}>
                         {orgName}
@@ -217,15 +284,19 @@ export const HomeScreen: React.FC = () => {
                       >
                         {orgDescription}
                       </Text>
-                    </View>
-                    <View style={styles.organizationItemMeta}>
-                      <Text variant="caption" color="primary" style={styles.rolePill}>
-                        {membership.role.toUpperCase()}
+                      <Text variant="caption" color="textTertiary" style={styles.organizationMeta}>
+                        {(() => {
+                          const count =
+                            organizationUsersByOrg[membership.organization_id]?.length ?? 0;
+                          return `${count} ${count === 1 ? "member" : "members"}`;
+                        })()}
                       </Text>
-                      <Text variant="body" color="textSecondary">
-                        →
-                      </Text>
                     </View>
+                    <MaterialCommunityIcons
+                      name="chevron-right"
+                      size={20}
+                      color={colors.textTertiary}
+                    />
                   </TouchableOpacity>
                 );
               })}
@@ -238,7 +309,7 @@ export const HomeScreen: React.FC = () => {
             {organizationsError}
           </Text>
         )}
-      </ScrollView>
+      
 
       <Modal
         visible={isCreateModalOpen}
@@ -294,26 +365,17 @@ export const HomeScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
-    </Container>
+    </ScreenScaffold>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    padding: spacing.lg,
-    gap: spacing.lg,
-    paddingBottom: spacing.xxl,
-  },
   heroCard: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 20,
     padding: spacing.lg,
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundSecondary,
     shadowColor: colors.gray900,
     shadowOpacity: 0.06,
     shadowRadius: 16,
@@ -321,36 +383,43 @@ const styles = StyleSheet.create({
     elevation: 3,
     gap: spacing.lg,
   },
-  heroTopRow: {
+  heroTitle: {
+    fontSize: 40,
+    color: colors.primary,
+    lineHeight: 44,
+  },
+  statsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
     gap: spacing.md,
   },
-  heroCopy: {
+  statCard: {
     flex: 1,
+    borderRadius: 14,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.gray50,
   },
-  title: {
-    fontSize: 30,
+  statCardCompact: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 12,
   },
-  subtitle: {
-    marginTop: spacing.xs,
+  statPrimary: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
   },
-  heroActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    flexWrap: "wrap",
-  },
-  primaryAction: {
-    minWidth: 210,
-  },
-  secondaryAction: {
-    minWidth: 140,
+  statValue: {
+    fontSize: 32,
+    marginBottom: spacing.xs,
   },
   card: {
     padding: spacing.lg,
-    borderRadius: 16,
+    borderRadius: 20,
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
     shadowColor: colors.gray900,
     shadowOpacity: 0.04,
     shadowRadius: 12,
@@ -362,6 +431,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: spacing.md,
+  },
+  sectionHeaderAction: {
+    fontWeight: "700",
+  },
+  newAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
   },
   loadingState: {
     flexDirection: "row",
@@ -376,31 +453,37 @@ const styles = StyleSheet.create({
   organizationItem: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: spacing.md,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: spacing.md,
+    backgroundColor: colors.backgroundSecondary,
+  },
+  organizationItemCompact: {
+    padding: spacing.sm,
+    gap: spacing.sm,
+    borderRadius: 12,
+  },
+  logoBlock: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.gray50,
   },
   organizationItemBody: {
     flex: 1,
-    marginRight: spacing.md,
   },
   organizationName: {
     fontWeight: "600",
     marginBottom: spacing.xs,
   },
-  organizationItemMeta: {
-    alignItems: "flex-end",
-    gap: spacing.xs,
-  },
-  rolePill: {
-    borderWidth: 1,
-    borderColor: colors.primary,
-    borderRadius: 999,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    overflow: "hidden",
+  organizationMeta: {
+    marginTop: spacing.xs,
   },
   emptyState: {
     alignItems: "center",
@@ -428,7 +511,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   modalCard: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundSecondary,
     borderRadius: 20,
     padding: spacing.lg,
     borderWidth: 1,

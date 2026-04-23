@@ -9,8 +9,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { colors, spacing } from '../../theme';
+import { colors, radii, spacing } from '../../theme';
 
 interface ButtonProps extends Omit<TouchableOpacityProps, 'children'> {
   children: React.ReactNode;
@@ -54,6 +53,8 @@ export const Button: React.FC<ButtonProps> = ({
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
       style={[
         styles.button,
         getButtonStyle(),
@@ -63,53 +64,35 @@ export const Button: React.FC<ButtonProps> = ({
       ]}
       {...props}
     >
-      {variant === 'primary' ? (
-        <LinearGradient
-          colors={["#5c2cff", "#2b7ef8"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.gradient}
-        >
-          {buttonContent}
-        </LinearGradient>
-      ) : (
-        buttonContent
-      )}
+      {buttonContent}
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   button: {
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.smd,
     paddingHorizontal: spacing.lg,
-    borderRadius: 999,
+    borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 52,
-    overflow: 'hidden',
+    minHeight: 50,
   },
   primary: {
-    backgroundColor: 'transparent',
+    backgroundColor: colors.actionPrimary,
   },
   secondary: {
-    backgroundColor: colors.accent,
-    borderRadius: 999,
+    backgroundColor: colors.actionSecondary,
   },
   outline: {
-    backgroundColor: 'transparent',
+    backgroundColor: colors.surfacePrimary,
     borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  gradient: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: colors.actionPrimary,
   },
   fullWidth: {
     width: '100%',
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.6,
   },
 });

@@ -5,6 +5,7 @@ import type {
   GetOrganizationUsersResponse,
   JoinOrganizationResponse,
   MembershipRole,
+  OrganizationUser,
   OrganizationMembership,
   UUID,
 } from "../contracts/backend-api.types.js";
@@ -102,6 +103,20 @@ export class OrganizationService {
     return (data ?? []) as OrganizationMembership[];
   }
 
+  async getOrganizationRole(
+    organizationId: UUID,
+    userId: UUID,
+  ): Promise<MembershipRole | null> {
+    const { data, error } = await this.client
+      .from("organization_members")
+      .select("role")
+      .eq("organization_id", organizationId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error) throw error;
+    return (data?.role as MembershipRole | undefined) ?? null;
+  }
+
   async getAllUsersInOrganization(
     organizationId: UUID,
     search?: string,
@@ -126,5 +141,49 @@ export class OrganizationService {
       ...(profiles?.id ? { profile_id: profiles.id } : {}),
       ...(profiles?.full_name ? { profile_full_name: profiles.full_name } : {}),
     }));
+  }
+
+  async listInviteCandidates(
+    organizationId: UUID,
+    search?: string,
+  ): Promise<OrganizationUser[]> {
+    const { data: memberships, error: membershipsError } = await this.client
+      .from("organization_members")
+      .select("user_id")
+      .eq("organization_id", organizationId);
+    if (membershipsError) throw membershipsError;
+
+    const existingMemberIds = new Set(
+      ((memberships ?? []) as Array<{ user_id: UUID }>).map((row) => row.user_id),
+    );
+
+    let profilesQuery = this.client
+      .from("profiles")
+      .select("id, full_name")
+      .limit(50);
+    if (search && search.trim().length > 0) {
+      profilesQuery = profilesQuery.ilike("full_name", `%${search.trim()}%`);
+    }
+
+    const { data: profiles, error: profilesError } = await profilesQuery;
+    if (profilesError) throw profilesError;
+
+    const profileRows = (profiles ?? []) as Array<{ id: UUID; full_name?: string | null }>;
+    return profileRows
+      .filter((profile) => !existingMemberIds.has(profile.id))
+      .map((profile) => ({
+        user_id: profile.id,
+        role: "member",
+        ...(profile.id ? { profile_id: profile.id } : {}),
+        ...(profile.full_name ? { profile_full_name: profile.full_name } : {}),
+      }));
+  }
+
+  async inviteUserToOrganization(
+    organizationId: UUID,
+    userId: UUID,
+    role: MembershipRole,
+  ): Promise<JoinOrganizationResponse> {
+    return this.joinOrganization(organizationId, userId, role);
   }
 }

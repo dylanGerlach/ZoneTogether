@@ -25,6 +25,7 @@
     "expo-dev-client": "^55.0.9",
     "expo-linear-gradient": "~13.0.2",
     "expo-status-bar": "~1.12.1",
+    "h3-js": "^4.4.0",
     "leaflet": "^1.9.4",
     "react": "18.2.0",
     "react-dom": "18.2.0",

@@ -11,17 +11,42 @@ import type {
   CreateMessageResponse,
   CreateOrganizationRequest,
   CreateOrganizationResponse,
+  CreateProjectRequest,
+  CreateProjectResponse,
+  CreateProjectTeamRequest,
   CreateSessionRequest,
   CreateSessionResponse,
   DeleteZoneResponse,
+  DeleteProjectResponse,
+  DeleteProjectTeamResponse,
   GenerateH3GridRequest,
   GenerateH3GridResponse,
+  GeocodeResponse,
   GetMessagesResponse,
+  GetProjectMapResponse,
+  GetProjectTeamMembersResponse,
+  GetProjectsResponse,
   GetOrganizationUsersResponse,
+  GetOrganizationInviteCandidatesResponse,
   GetOrganizationsResponse,
+  GetSessionUsersResponse,
   GetZonesResponse,
   GeoJSONPosition,
   GetUserSessionsResponse,
+  MessageSession,
+  ListProjectTeamsResponse,
+  SetProjectTeamMembersRequest,
+  SetProjectTeamMembersResponse,
+  AssignProjectHexesRequest,
+  AssignProjectHexesResponse,
+  UnassignProjectHexesRequest,
+  UnassignProjectHexesResponse,
+  UpdateProjectRequest,
+  UpdateProjectResponse,
+  UpdateProjectTeamRequest,
+  ProjectTeam,
+  InviteOrganizationUserRequest,
+  InviteOrganizationUserResponse,
   UpdateZoneRequest,
   UpdateZoneResponse,
   ZoneFeature,
@@ -138,12 +163,235 @@ export async function fetchOrganizationUsers(
   );
 }
 
+export async function fetchOrganizationInviteCandidates(
+  session: Session,
+  organizationId: string,
+  search?: string,
+): Promise<GetOrganizationInviteCandidatesResponse> {
+  const searchQuery =
+    search && search.trim().length > 0
+      ? `?search=${encodeURIComponent(search.trim())}`
+      : "";
+  return apiFetch<GetOrganizationInviteCandidatesResponse>(
+    session,
+    `/organization/${encodeURIComponent(organizationId)}/invite-candidates${searchQuery}`,
+    { method: "GET" },
+  );
+}
+
+export async function inviteOrganizationUser(
+  session: Session,
+  organizationId: string,
+  payload: InviteOrganizationUserRequest,
+): Promise<InviteOrganizationUserResponse> {
+  return apiFetch<InviteOrganizationUserResponse>(
+    session,
+    `/organization/${encodeURIComponent(organizationId)}/invite`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function fetchProjects(
+  session: Session,
+  organizationId: string,
+): Promise<GetProjectsResponse> {
+  return apiFetch<GetProjectsResponse>(
+    session,
+    `/projects?organizationId=${encodeURIComponent(organizationId)}`,
+    { method: "GET" },
+  );
+}
+
+export async function createProject(
+  session: Session,
+  payload: CreateProjectRequest,
+): Promise<CreateProjectResponse> {
+  return apiFetch<CreateProjectResponse>(session, "/projects", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function geocodeCity(
+  session: Session,
+  query: string,
+  options?: { signal?: AbortSignal },
+): Promise<GeocodeResponse> {
+  return apiFetch<GeocodeResponse>(
+    session,
+    `/projects/geocode?q=${encodeURIComponent(query)}`,
+    { method: "GET", signal: options?.signal },
+  );
+}
+
+export async function updateProject(
+  session: Session,
+  projectId: string,
+  payload: UpdateProjectRequest,
+): Promise<UpdateProjectResponse> {
+  return apiFetch<UpdateProjectResponse>(
+    session,
+    `/projects/${encodeURIComponent(projectId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function deleteProject(
+  session: Session,
+  projectId: string,
+): Promise<DeleteProjectResponse> {
+  return apiFetch<DeleteProjectResponse>(
+    session,
+    `/projects/${encodeURIComponent(projectId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function fetchProjectTeams(
+  session: Session,
+  projectId: string,
+): Promise<ListProjectTeamsResponse> {
+  return apiFetch<ListProjectTeamsResponse>(
+    session,
+    `/projects/${encodeURIComponent(projectId)}/teams`,
+    { method: "GET" },
+  );
+}
+
+export async function createProjectTeam(
+  session: Session,
+  projectId: string,
+  payload: CreateProjectTeamRequest,
+): Promise<ProjectTeam> {
+  return apiFetch<ProjectTeam>(
+    session,
+    `/projects/${encodeURIComponent(projectId)}/teams`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function updateProjectTeam(
+  session: Session,
+  projectId: string,
+  teamId: string,
+  payload: UpdateProjectTeamRequest,
+): Promise<ProjectTeam> {
+  return apiFetch<ProjectTeam>(
+    session,
+    `/projects/${encodeURIComponent(projectId)}/teams/${encodeURIComponent(teamId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function deleteProjectTeam(
+  session: Session,
+  projectId: string,
+  teamId: string,
+): Promise<DeleteProjectTeamResponse> {
+  return apiFetch<DeleteProjectTeamResponse>(
+    session,
+    `/projects/${encodeURIComponent(projectId)}/teams/${encodeURIComponent(teamId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function fetchProjectTeamMembers(
+  session: Session,
+  projectId: string,
+): Promise<GetProjectTeamMembersResponse> {
+  return apiFetch<GetProjectTeamMembersResponse>(
+    session,
+    `/projects/${encodeURIComponent(projectId)}/members`,
+    { method: "GET" },
+  );
+}
+
+export async function setProjectTeamMembers(
+  session: Session,
+  projectId: string,
+  teamId: string,
+  payload: SetProjectTeamMembersRequest,
+): Promise<SetProjectTeamMembersResponse> {
+  return apiFetch<SetProjectTeamMembersResponse>(
+    session,
+    `/projects/${encodeURIComponent(projectId)}/teams/${encodeURIComponent(teamId)}/members`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function fetchProjectMap(
+  session: Session,
+  projectId: string,
+): Promise<GetProjectMapResponse> {
+  return apiFetch<GetProjectMapResponse>(
+    session,
+    `/projects/${encodeURIComponent(projectId)}/map`,
+    { method: "GET" },
+  );
+}
+
+export async function assignProjectHexes(
+  session: Session,
+  projectId: string,
+  payload: AssignProjectHexesRequest,
+): Promise<AssignProjectHexesResponse> {
+  return apiFetch<AssignProjectHexesResponse>(
+    session,
+    `/projects/${encodeURIComponent(projectId)}/map/assign`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function unassignProjectHexes(
+  session: Session,
+  projectId: string,
+  payload: UnassignProjectHexesRequest,
+): Promise<UnassignProjectHexesResponse> {
+  return apiFetch<UnassignProjectHexesResponse>(
+    session,
+    `/projects/${encodeURIComponent(projectId)}/map/unassign`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
 export async function fetchUserSessions(
   session: Session,
 ): Promise<GetUserSessionsResponse> {
   return apiFetch<GetUserSessionsResponse>(session, "/sessions", {
     method: "GET",
   });
+}
+
+export async function ensureProjectChatSession(
+  session: Session,
+  projectId: string,
+): Promise<MessageSession> {
+  return apiFetch<MessageSession>(
+    session,
+    `/projects/${encodeURIComponent(projectId)}/chat`,
+    { method: "GET" },
+  );
 }
 
 export async function createSession(
@@ -166,6 +414,17 @@ export async function fetchSessionMessages(
     {
       method: "GET",
     },
+  );
+}
+
+export async function fetchSessionUsers(
+  session: Session,
+  sessionId: string,
+): Promise<GetSessionUsersResponse> {
+  return apiFetch<GetSessionUsersResponse>(
+    session,
+    `/sessions/${encodeURIComponent(sessionId)}/users`,
+    { method: "GET" },
   );
 }
 

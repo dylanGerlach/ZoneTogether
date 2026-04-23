@@ -1,11 +1,21 @@
-import React, { useMemo } from "react";
-import { ActivityIndicator, Platform, ScrollView, StyleSheet, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React, { useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Constants from "expo-constants";
 
-import { Button, Card, SliderControl, Text } from "../components";
+import { Button, Card, ScreenScaffold, SliderControl, Text } from "../components";
 import { useAuthContext } from "../context/AuthContext";
 import { ModeToggle } from "../features/zones/components/ModeToggle";
 import { OverlapPopup } from "../features/zones/components/OverlapPopup";
@@ -24,6 +34,10 @@ export const ZoneMapScreen: React.FC = () => {
   const { organizationId, organizationName } = route.params;
   const { session } = useAuthContext();
   const { height: windowHeight } = useWindowDimensions();
+  const [deleteTargetZone, setDeleteTargetZone] = useState<{ id: string; label: string } | null>(
+    null,
+  );
+  const [deletingZone, setDeletingZone] = useState(false);
 
   const {
     mode,
@@ -76,6 +90,21 @@ export const ZoneMapScreen: React.FC = () => {
       ? "google-maps-key-missing"
       : null;
   const computedMapHeight = Math.max(420, Math.round(windowHeight * mapHeightRatio));
+  const closeDeleteZoneModal = () => {
+    if (deletingZone) return;
+    setDeleteTargetZone(null);
+  };
+
+  const handleConfirmDeleteZone = async () => {
+    if (!deleteTargetZone) return;
+    setDeletingZone(true);
+    try {
+      await handleDeleteZone(deleteTargetZone.id);
+      setDeleteTargetZone(null);
+    } finally {
+      setDeletingZone(false);
+    }
+  };
 
   const initialRegion = useMemo<ZoneMapRegion>(
     () => ({
@@ -87,22 +116,19 @@ export const ZoneMapScreen: React.FC = () => {
     [],
   );
 
-  const Container = Platform.OS === "web" ? View : SafeAreaView;
-  const containerProps =
-    Platform.OS === "web"
-      ? { style: styles.container }
-      : { style: styles.container, edges: ["top", "bottom"] as const };
-
   return (
-    <Container {...containerProps}>
+    <ScreenScaffold
+      title={`${organizationName} Zones`}
+      subtitle="Draw and manage cleanup zones"
+      scroll={false}
+      leftAction={{
+        iconName: "arrow-left",
+        accessibilityLabel: "Back",
+        onPress: () => navigation.goBack(),
+      }}
+    >
       <View style={styles.content}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Text variant="body" color="primary">
-              ← Back
-            </Text>
-          </TouchableOpacity>
-          <Text variant="h2">{organizationName} Zones</Text>
           <Text variant="caption" color="textSecondary">
             Blue: saved zones. Red: draft.
           </Text>
@@ -283,7 +309,10 @@ export const ZoneMapScreen: React.FC = () => {
                       <Button
                         variant="outline"
                         onPress={() => {
-                          void handleDeleteZone(zoneId, getZoneLabel(zone, index));
+                          setDeleteTargetZone({
+                            id: zoneId,
+                            label: getZoneLabel(zone, index),
+                          });
                         }}
                       >
                         <Text variant="caption" color="error">
@@ -310,15 +339,44 @@ export const ZoneMapScreen: React.FC = () => {
         }}
         loading={adjusting}
       />
-    </Container>
+
+      <Modal
+        visible={deleteTargetZone !== null}
+        animationType="fade"
+        transparent
+        onRequestClose={closeDeleteZoneModal}
+      >
+        <View style={styles.modalBackdrop}>
+          <Pressable style={styles.modalBackdropPressable} onPress={closeDeleteZoneModal} />
+          <View style={styles.modalCard}>
+            <Text variant="h3">Delete zone</Text>
+            <Text variant="body" color="textSecondary">
+              Delete "{deleteTargetZone?.label ?? "this zone"}"?
+            </Text>
+            <View style={styles.modalActions}>
+              <Button variant="outline" onPress={closeDeleteZoneModal}>
+                <Text variant="label" color="primary">
+                  Cancel
+                </Text>
+              </Button>
+              <Button
+                variant="outline"
+                onPress={() => void handleConfirmDeleteZone()}
+                loading={deletingZone}
+              >
+                <Text variant="label" color="error">
+                  Delete
+                </Text>
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </ScreenScaffold>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
   content: {
     flex: 1,
     paddingHorizontal: spacing.lg,
@@ -327,9 +385,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     gap: spacing.sm,
     paddingBottom: spacing.xxl,
-  },
-  backButton: {
-    alignSelf: "flex-start",
   },
   controlsCard: {
     borderRadius: 16,
@@ -413,5 +468,28 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 999,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    paddingHorizontal: spacing.lg,
+  },
+  modalBackdropPressable: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  modalCard: {
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 20,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
 });

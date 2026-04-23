@@ -74,6 +74,13 @@ Omer Raziuddin,
 
 ## Usage Instructions
 
+## UI System Notes
+
+- Use `ScreenScaffold` for app screens to ensure consistent gradient header, spacing, and safe-area behavior.
+- Use `AppGradientHeader` when a custom header composition is needed but the same branded top section should remain.
+- Prefer base components from `frontend/src/components/base` (`Button`, `Input`, `Card`, `Text`, `Checkbox`) over ad hoc controls.
+- Keep colors/spacing/typography/radius/elevation from `frontend/src/theme` and avoid hardcoded visual values in screens.
+- Maintain mobile-first layout: minimum 44px touch targets, clear visual hierarchy, and consistent empty/loading/error states.
 
 
 ## Languages, Technologies, and Frameworks Used

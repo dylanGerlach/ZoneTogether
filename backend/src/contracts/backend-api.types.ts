@@ -42,6 +42,23 @@ export interface JoinOrganizationRequest {
   role?: MembershipRole;
 }
 
+/**
+ * GET /organization/:organizationId/invite-candidates
+ */
+export interface GetOrganizationInviteCandidatesResponse {
+  users: OrganizationUser[];
+}
+
+/**
+ * POST /organization/:organizationId/invite
+ */
+export interface InviteOrganizationUserRequest {
+  userId: UUID;
+  role?: MembershipRole;
+}
+
+export type InviteOrganizationUserResponse = OrganizationMemberRecord | null;
+
 export interface OrganizationMemberRecord {
   organization_id: UUID;
   user_id: UUID;
@@ -81,6 +98,190 @@ export interface OrganizationUser {
 export type GetOrganizationUsersResponse = OrganizationUser[];
 
 /**
+ * Projects / Teams / H3 ownership
+ */
+export interface Project {
+  id: UUID;
+  organization_id: UUID;
+  name: string;
+  description: string | null;
+  h3_resolution: number;
+  city: string;
+  center_lat: number;
+  center_lng: number;
+  created_by: UUID;
+  created_at: ISODateString;
+  updated_at: ISODateString;
+}
+
+export interface ProjectTeam {
+  id: UUID;
+  project_id: UUID;
+  name: string;
+  color_hex: string;
+  created_at: ISODateString;
+  updated_at: ISODateString;
+}
+
+export interface ProjectTeamMember {
+  project_id: UUID;
+  team_id: UUID;
+  user_id: UUID;
+  assigned_by: UUID;
+  created_at: ISODateString;
+}
+
+export interface ProjectHexAssignment {
+  project_id: UUID;
+  h3_cell: string;
+  team_id: UUID;
+  assigned_by: UUID;
+  created_at: ISODateString;
+  updated_at: ISODateString;
+}
+
+/**
+ * GET /projects?organizationId=:organizationId
+ */
+export interface GetProjectsResponse {
+  projects: Project[];
+}
+
+/**
+ * POST /projects
+ */
+export interface CreateProjectRequest {
+  organizationId: UUID;
+  name: string;
+  description?: string;
+  h3Resolution?: number;
+  city: string;
+  centerLat: number;
+  centerLng: number;
+}
+
+export type CreateProjectResponse = Project;
+
+/**
+ * GET /projects/geocode?q=:query
+ */
+export interface GeocodeResult {
+  label: string;
+  city: string;
+  lat: number;
+  lng: number;
+}
+
+export type GeocodeResponse = GeocodeResult[];
+
+/**
+ * PATCH /projects/:projectId
+ */
+export interface UpdateProjectRequest {
+  name?: string;
+  description?: string;
+  h3Resolution?: number;
+}
+
+export type UpdateProjectResponse = Project;
+
+/**
+ * DELETE /projects/:projectId
+ */
+export interface DeleteProjectResponse {
+  ok: true;
+  id: UUID;
+}
+
+/**
+ * GET /projects/:projectId/teams
+ */
+export interface ListProjectTeamsResponse {
+  teams: ProjectTeam[];
+}
+
+/**
+ * POST /projects/:projectId/teams
+ */
+export interface CreateProjectTeamRequest {
+  name: string;
+  colorHex: string;
+}
+
+/**
+ * PATCH /projects/:projectId/teams/:teamId
+ */
+export interface UpdateProjectTeamRequest {
+  name?: string;
+  colorHex?: string;
+}
+
+/**
+ * DELETE /projects/:projectId/teams/:teamId
+ */
+export interface DeleteProjectTeamResponse {
+  ok: true;
+  id: UUID;
+}
+
+/**
+ * PUT /projects/:projectId/teams/:teamId/members
+ */
+export interface SetProjectTeamMembersRequest {
+  userIds: UUID[];
+}
+
+export interface SetProjectTeamMembersResponse {
+  members: ProjectTeamMember[];
+}
+
+/**
+ * GET /projects/:projectId/members
+ */
+export interface GetProjectTeamMembersResponse {
+  members: ProjectTeamMember[];
+}
+
+export interface ProjectMapTeamSnapshot {
+  team: ProjectTeam;
+  memberCount: number;
+  h3Cells: string[];
+}
+
+/**
+ * GET /projects/:projectId/map
+ */
+export interface GetProjectMapResponse {
+  project: Project;
+  teams: ProjectMapTeamSnapshot[];
+}
+
+/**
+ * POST /projects/:projectId/map/assign
+ */
+export interface AssignProjectHexesRequest {
+  teamId: UUID;
+  h3Cells: string[];
+}
+
+export interface AssignProjectHexesResponse {
+  ok: true;
+  assignedCount: number;
+}
+
+/**
+ * POST /projects/:projectId/map/unassign
+ */
+export interface UnassignProjectHexesRequest {
+  h3Cells: string[];
+}
+
+export interface UnassignProjectHexesResponse {
+  ok: true;
+  unassignedCount: number;
+}
+
+/**
  * POST /sessions
  */
 export interface CreateSessionRequest {
@@ -96,6 +297,7 @@ export interface MessageSession {
   last_message_sent?: string | null;
   created_at?: ISODateString;
   updated_at?: ISODateString;
+  project_id?: UUID | null;
 }
 
 export type CreateSessionResponse = MessageSession;
@@ -117,7 +319,10 @@ export type GetUserSessionsResponse = MessageSessionUser[];
 export interface CreateMessageRequest {
   sessionId: UUID;
   content: string;
+  h3Cell?: string;
 }
+
+export type MessageKind = "text" | "system_join" | "system_leave";
 
 export interface Message {
   id: UUID;
@@ -129,6 +334,8 @@ export interface Message {
   profile_full_name?: string;
   created_at?: ISODateString;
   updated_at?: ISODateString;
+  h3_cell?: string | null;
+  kind?: MessageKind;
 }
 
 export type CreateMessageResponse = Message;
@@ -137,6 +344,18 @@ export type CreateMessageResponse = Message;
  * GET /sessions/:sessionId
  */
 export type GetMessagesResponse = Message[];
+
+/**
+ * GET /sessions/:sessionId/users
+ */
+export interface SessionUser {
+  user_id: UUID;
+  profile_id?: UUID;
+  profile_full_name?: string;
+  created_at?: ISODateString;
+}
+
+export type GetSessionUsersResponse = SessionUser[];
 
 /**
  * Zones GeoJSON models

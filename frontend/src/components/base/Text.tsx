@@ -33,9 +33,9 @@ export const Text: React.FC<TextProps> = ({
 
 const styles = StyleSheet.create({
   h1: {
-    fontSize: typography.fontSize.xxl,
+    fontSize: typography.fontSize.xxxl,
     fontWeight: typography.fontWeight.bold,
-    lineHeight: typography.fontSize.xxl * typography.lineHeight.tight,
+    lineHeight: typography.fontSize.xxxl * typography.lineHeight.tight,
   },
   h2: {
     fontSize: typography.fontSize.xl,

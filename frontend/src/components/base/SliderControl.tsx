@@ -15,6 +15,12 @@ type SliderControlProps = {
   valueText?: string;
 };
 
+// `@react-native-community/slider` on web strips `value === 0` to `undefined`
+// via `!value` and then crashes with `undefined.toFixed(...)`. Shifting the
+// entire range by a constant non-zero offset guarantees Slider never receives
+// a literal 0 while keeping consumer semantics untouched.
+const VALUE_SHIFT = 1;
+
 export const SliderControl: React.FC<SliderControlProps> = ({
   label,
   value,
@@ -24,6 +30,10 @@ export const SliderControl: React.FC<SliderControlProps> = ({
   onValueChange,
   valueText,
 }) => {
+  const handleValueChange = (nextValue: number) => {
+    onValueChange(nextValue - VALUE_SHIFT);
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
@@ -35,11 +45,11 @@ export const SliderControl: React.FC<SliderControlProps> = ({
         </Text>
       </View>
       <Slider
-        value={value}
-        minimumValue={minimumValue}
-        maximumValue={maximumValue}
+        value={value + VALUE_SHIFT}
+        minimumValue={minimumValue + VALUE_SHIFT}
+        maximumValue={maximumValue + VALUE_SHIFT}
         step={step}
-        onValueChange={onValueChange}
+        onValueChange={handleValueChange}
         minimumTrackTintColor={colors.primary}
         maximumTrackTintColor={colors.gray300}
         thumbTintColor={colors.primary}
